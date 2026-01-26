@@ -54,7 +54,6 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef, useCallback } = React;
 
-        // ✅ 새로 배포된 URL 적용
         const GOOGLE_API_URL = "https://script.google.com/macros/s/AKfycbynMT3oxwRHDSc1_Jz84I0KXmk8zJXcil3PfcvnSiIvlrAuSBNAc4KDFKJPhvJjv-l5mQ/exec";
         const FIXED_BANK_ACCOUNT = "카카오뱅크 김선정\n7942 18 01611";
 
@@ -110,15 +109,21 @@
 
             const fetchData = async () => {
                 try {
-                    // 🔴 [중요] headers 제거됨 (CORS 해결)
-                    // URL에 timestamp를 붙여 캐싱 방지
+                    // ✅ [통신 오류 해결을 위한 옵션 강화]
+                    // cache: 'no-store': 브라우저가 응답을 캐시하지 않도록 강제함
+                    // redirect: 'follow': 구글 스크립트 리다이렉션을 자동으로 따라감
                     const fetchUrl = `${googleScriptUrl}?t=${Date.now()}`;
-                    const res = await fetch(fetchUrl); 
+                    const res = await fetch(fetchUrl, {
+                        method: 'GET',
+                        redirect: 'follow', 
+                        cache: 'no-store' 
+                    });
                     
                     if (!res.ok) throw new Error(`HTTP ${res.status}`);
                     
                     const text = await res.text();
                     
+                    // HTML 응답 감지 (로그인 페이지 등)
                     if (text.trim().startsWith("<!DOCTYPE html") || text.includes("Google Accounts")) {
                         setConnectionStatus({ 
                             code: 'error_auth', 
@@ -131,7 +136,7 @@
                     try { 
                         data = JSON.parse(text); 
                     } catch (e) { 
-                        console.error("JSON 파싱 에러. 수신된 데이터:", text);
+                        console.error("JSON 파싱 에러:", text);
                         throw new Error("데이터 형식 오류"); 
                     }
                     
@@ -153,7 +158,7 @@
                         setServerDeposits(stableDeposits);
                     }
                 } catch (e) {
-                    console.warn("연결 실패:", e.message); 
+                    console.warn("연결 실패 (재시도 예정):", e.message); 
                     setConnectionStatus({ code: 'error_fetch', msg: '연결 재시도 중...' });
                 }
             };
