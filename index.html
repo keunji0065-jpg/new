@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>깔로 주문서 PRO (최종수정)</title>
+    <title>깔로 주문서 PRO (통신오류해결)</title>
     
     <!-- 라이브러리 로드 -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin="anonymous"></script>
@@ -54,7 +54,7 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef, useCallback } = React;
 
-        const GOOGLE_API_URL = "https://script.google.com/macros/s/AKfycbx9hzT3n5RksZnLjtrEfDbSh8biJK9OQz8TEVaJjcn9saN1u7c_bbWTuun9QRq72MhY/exec";
+        const GOOGLE_API_URL = "https://script.google.com/macros/s/AKfycby3hYSeVGOrFBzAtRzEZMP2zTZsv4JCU4vvcQRyUypcXSGJSJ_A3eNIi_CzL4x-upUT9w/exec";
         const FIXED_BANK_ACCOUNT = "카카오뱅크 김선정\n7942 18 01611";
 
         const Icon = ({ name, className="", weight="regular" }) => <i className={`ph ph-${name} ${className}`} data-phosphor-icon-weight={weight}></i>;
@@ -101,7 +101,7 @@
             const [keywordInput, setKeywordInput] = useState('');
             const [showKeywordOnly, setShowKeywordOnly] = useState(false);
 
-            const [connectionStatus, setConnectionStatus] = useState({ code: 'loading', msg: '' }); 
+            const [connectionStatus, setConnectionStatus] = useState({ code: 'loading', msg: '연결 중...' }); 
             const [copyStatus, setCopyStatus] = useState({});
             const [isSaving, setIsSaving] = useState(false);
             
@@ -109,11 +109,31 @@
 
             const fetchData = async () => {
                 try {
-                    const res = await fetch(googleScriptUrl);
+                    // ✅ [수정] 헤더 제거하여 CORS Preflight 방지 및 단순 요청으로 변경
+                    const fetchUrl = `${googleScriptUrl}?t=${Date.now()}`;
+                    const res = await fetch(fetchUrl);
+                    
                     if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    
                     const text = await res.text();
+                    
+                    // ✅ [수정] HTML 응답(로그인 페이지) 감지 로직 추가
+                    if (text.trim().startsWith("<!DOCTYPE html") || text.includes("Google Accounts")) {
+                        setConnectionStatus({ 
+                            code: 'error_auth', 
+                            msg: '⚠️ 구글 시트 배포 권한을 "모든 사용자"로 변경해주세요.' 
+                        });
+                        return;
+                    }
+
                     let data;
-                    try { data = JSON.parse(text); } catch (e) { throw new Error("JSON 파싱 오류"); }
+                    try { 
+                        data = JSON.parse(text); 
+                    } catch (e) { 
+                        // JSON 파싱 실패 시 원본 텍스트 확인
+                        console.error("JSON 파싱 에러. 수신된 데이터:", text);
+                        throw new Error("데이터 형식 오류"); 
+                    }
                     
                     if (data.chats) {
                         setChats(data.chats); 
@@ -121,16 +141,20 @@
                         else setConnectionStatus({ code: 'success', msg: '연결 성공' });
                     }
                     if (data.deposits) {
-                        const stableDeposits = data.deposits.map((d, i) => ({
-                            ...d,
-                            id: d.uid || `dep_${d.name}_${d.amount}_${i}`,
-                            source: 'server'
-                        }));
+                        const stableDeposits = data.deposits.map((d, i) => {
+                            const safeName = d.name ? String(d.name) : '알수없음';
+                            const safeAmount = d.amount ? String(d.amount) : '0';
+                            return {
+                                ...d,
+                                id: d.id || d.uid || `dep_${safeName}_${safeAmount}_${i}`, 
+                                source: 'server'
+                            };
+                        });
                         setServerDeposits(stableDeposits);
                     }
                 } catch (e) {
-                    console.error("연결 실패:", e);
-                    setConnectionStatus({ code: 'error_fetch', msg: e.message });
+                    console.warn("연결 실패:", e.message); 
+                    setConnectionStatus({ code: 'error_fetch', msg: '연결 재시도 중...' });
                 }
             };
 
@@ -184,7 +208,13 @@
                     const currentShipping = shippingOverrides[o.customer] !== undefined ? shippingOverrides[o.customer] : Number(quickShipping);
                     saveList.push({ nickname: o.customer, product: o.product, qty: o.quantity, price: o.price, deposit: o.deposit, shipping: currentShipping, grandTotal: 0, address: addr.address || '', zipcode: addr.zipcode || '', phone: addr.phone || '', realname: addr.realname || '', memo: addr.memo || '' });
                 });
-                try { await fetch(googleScriptUrl, { method: 'POST', body: JSON.stringify(saveList) }); } 
+                try { 
+                    await fetch(googleScriptUrl, { 
+                        method: 'POST', 
+                        body: JSON.stringify(saveList),
+                        mode: 'no-cors' 
+                    }); 
+                } 
                 catch(e) { console.error("저장 실패", e); } finally { setIsSaving(false); }
             };
             useEffect(() => { const saveInterval = setInterval(autoSaveToGoogleSheet, 60000); return () => clearInterval(saveInterval); }, [orders, shippingOverrides, quickShipping]); 
@@ -273,7 +303,7 @@
             const copyOrderSheet = (nick, items, grandTotal, depositTotal, balance, isCard) => {
                 const activeItems = items.filter(i => !i.isCancelled);
                 const hasZeroPrice = activeItems.some(i => Number(i.price) === 0);
-                const addr = findAddress(nick); // 주소 정보 확인
+                const addr = findAddress(nick); 
 
                 const itemListText = activeItems.map(i => {
                     const qtyPart = i.quantity > 1 ? `(${i.quantity}개)` : '';
@@ -326,7 +356,6 @@
                     }
                 }
 
-                // ✅ 주소 유무에 따른 하단 문구 변경 (요청사항 반영)
                 if (addr) {
                     msg += `[기존 배송지]\n\n`;
                     msg += `${addr.realname || ''} ${addr.phone || ''}\n`;
@@ -368,28 +397,39 @@
 
             const filteredDeposits = useMemo(() => {
                 let result = [...allDeposits];
+                
                 if (depositSearch) {
-                    result = result.filter(d => d.name.toLowerCase().includes(depositSearch.toLowerCase()) || String(d.amount).includes(depositSearch));
+                    result = result.filter(d => {
+                        const name = d.name ? String(d.name).toLowerCase() : '';
+                        const amount = d.amount ? String(d.amount) : '';
+                        return name.includes(depositSearch.toLowerCase()) || amount.includes(depositSearch);
+                    });
                 }
+
                 if (selectedNick) {
-                    const targetNick = selectedNick.replace(/\s/g, '').toLowerCase(); 
-                    const targetReal = depositorNames[selectedNick] ? depositorNames[selectedNick].replace(/\s/g, '').toLowerCase() : '';
+                    const targetNick = String(selectedNick).replace(/\s/g, '').toLowerCase(); 
+                    const depositorName = depositorNames && depositorNames[selectedNick];
+                    const targetReal = depositorName ? String(depositorName).replace(/\s/g, '').toLowerCase() : '';
                     
                     result.sort((a, b) => {
-                        const nameA = a.name.replace(/\s/g, '').toLowerCase();
-                        const nameB = b.name.replace(/\s/g, '').toLowerCase();
+                        const nameA = a.name ? String(a.name).replace(/\s/g, '').toLowerCase() : '';
+                        const nameB = b.name ? String(b.name).replace(/\s/g, '').toLowerCase() : '';
+                        
                         const getScore = (val, target) => {
-                            if (!target) return 3;
+                            if (!target || !val) return 3;
                             if (val === target) return 0;
                             if (val.startsWith(target)) return 1;
                             if (val.includes(target)) return 2;
                             return 3;
                         };
+
                         const scoreA = Math.min(getScore(nameA, targetNick), getScore(nameA, targetReal));
                         const scoreB = Math.min(getScore(nameB, targetNick), getScore(nameB, targetReal));
+
                         return scoreA - scoreB;
                     });
                 }
+                
                 return result;
             }, [allDeposits, depositSearch, selectedNick, depositorNames]);
 
@@ -413,9 +453,8 @@
                     const currentShipping = shippingOverrides[nick] !== undefined ? shippingOverrides[nick] : Number(quickShipping);
                     const activeItems = items.filter(i => !i.isCancelled);
                     const productTotal = activeItems.reduce((sum, i) => sum + Number(i.price), 0);
-                    const finalShipping = activeItems.length > 0 ? currentShipping : 0;
                     const depositTotal = items.reduce((sum, i) => sum + (i.deposit || 0), 0);
-                    const grandTotal = productTotal + finalShipping;
+                    const grandTotal = productTotal + currentShipping;
                     const balance = grandTotal - depositTotal; 
                     
                     const hasZeroPrice = activeItems.some(i => Number(i.price) === 0);
@@ -715,12 +754,11 @@
             );
         };
 
-        const CustomerTab = ({ addresses, setAddresses }) => {
+        const CustomerTab = ({ addresses, setAddresses, googleScriptUrl }) => {
             const [searchTerm, setSearchTerm] = useState('');
             const fileInputRef = useRef(null);
             const [inputData, setInputData] = useState({ nickname: '', realname: '', phone: '', zipcode: '', address: '', memo: '' });
             
-            // ✅ 인라인 수정 상태 관리
             const [inlineEditNick, setInlineEditNick] = useState(null);
             const [inlineEditData, setInlineEditData] = useState({});
 
@@ -729,7 +767,6 @@
                 return addresses.filter(a => a.nickname.toLowerCase().includes(searchTerm.toLowerCase()) || a.realname.toLowerCase().includes(searchTerm.toLowerCase()));
             }, [addresses, searchTerm]);
 
-            // 기존 상단 폼 저장 (신규 추가용)
             const handleAdd = () => {
                 if (!inputData.nickname) return alert("닉네임은 필수입니다.");
                 if (addresses.some(a => a.nickname === inputData.nickname)) { if (!confirm("이미 존재하는 닉네임입니다. 덮어씌우시겠습니까?")) return; }
@@ -756,13 +793,11 @@
                 } catch (e) { alert("주소 검색 오류"); }
             };
 
-            // ✅ 인라인 수정 시작 (더블 클릭)
             const startInlineEdit = (addr) => {
                 setInlineEditNick(addr.nickname);
                 setInlineEditData({...addr});
             };
 
-            // ✅ 인라인 수정 저장
             const saveInlineEdit = () => {
                 setAddresses(prev => prev.map(a => a.nickname === inlineEditNick ? inlineEditData : a));
                 setInlineEditNick(null);
@@ -807,18 +842,59 @@
                 e.target.value = ''; 
             };
 
+            const handleCloudSave = async () => {
+                if(!confirm("현재 고객 목록을 서버(구글시트)에 백업하시겠습니까?\n(서버 스크립트가 이를 지원해야 합니다)")) return;
+                try {
+                    await fetch(googleScriptUrl, { 
+                        method: 'POST', 
+                        body: JSON.stringify({ action: 'backup_address', data: addresses }),
+                        mode: 'no-cors' // POST 전송 시 no-cors 사용
+                    });
+                    alert("서버에 저장 요청을 전송했습니다.");
+                } catch(e) {
+                    alert("전송 실패: " + e.message);
+                }
+            };
+
+            const handleCloudLoad = async () => {
+                if(!confirm("서버에서 고객 목록을 불러오시겠습니까?\n(현재 목록과 닉네임 기준으로 병합됩니다)")) return;
+                try {
+                    const res = await fetch(googleScriptUrl + "?action=get_addresses", {
+                        method: 'GET',
+                        redirect: 'follow',
+                        headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+                    });
+                    const data = await res.json();
+                    if (data && data.addresses && Array.isArray(data.addresses)) {
+                        const cloudAddrs = data.addresses;
+                        setAddresses(prev => {
+                            const map = new Map(prev.map(item => [item.nickname, item]));
+                            cloudAddrs.forEach(item => map.set(item.nickname, item)); 
+                            return Array.from(map.values());
+                        });
+                        alert(`${cloudAddrs.length}명 데이터 로드 완료!`);
+                    } else {
+                        alert("서버에서 주소 데이터를 찾을 수 없습니다.");
+                    }
+                } catch(e) {
+                    alert("로드 실패: " + e.message);
+                }
+            };
+
             return (
                 <div className="flex flex-col h-full bg-white rounded-lg shadow-sm border p-4 overflow-hidden">
                     <div className="flex justify-between items-center mb-4 pb-4 border-b">
                         <h2 className="text-xl font-bold flex items-center gap-2"><Icon name="address-book" weight="fill" className="text-indigo-600"/> 고객 주소록 관리 <span className="text-sm font-normal text-gray-500">({addresses.length}명)</span></h2>
                         <div className="flex gap-2">
+                            <button onClick={handleCloudSave} className="bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded text-sm font-bold flex items-center gap-1 shadow-sm"><Icon name="cloud-arrow-up" weight="fill"/> 서버 저장</button>
+                            <button onClick={handleCloudLoad} className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded text-sm font-bold flex items-center gap-1 shadow-sm"><Icon name="cloud-arrow-down" weight="fill"/> 서버 로드</button>
+                            
                             <input type="file" ref={fileInputRef} onChange={handleExcelUpload} className="hidden" accept=".xlsx, .xls" />
                             <button onClick={() => fileInputRef.current.click()} className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-sm font-bold flex items-center gap-1 shadow-sm">
                                 <Icon name="file-xls" weight="fill"/> 엑셀 일괄등록
                             </button>
                         </div>
                     </div>
-                    {/* 상단 추가 폼 */}
                     <div className="bg-indigo-50 p-3 rounded-lg border border-indigo-100 mb-4 flex gap-2 items-end">
                         <div className="flex-1 grid grid-cols-6 gap-2">
                             <div><label className="text-xs font-bold text-gray-500">닉네임</label><input type="text" value={inputData.nickname} onChange={e=>setInputData({...inputData, nickname:e.target.value})} className="w-full border rounded px-2 py-1 text-sm" placeholder="예: 깔로" /></div>
@@ -878,6 +954,75 @@
                                         </tr>
                                     );
                                 })}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            );
+        };
+
+        const CSTab = ({ csData, setCsData }) => {
+            const [newNick, setNewNick] = useState('');
+            const [newContent, setNewContent] = useState('');
+
+            const addCS = (e) => {
+                e.preventDefault();
+                if(!newNick) return;
+                const newItem = { id: Date.now(), date: new Date().toISOString(), nickname: newNick, content: newContent, isResolved: false };
+                setCsData([newItem, ...csData]);
+                setNewNick('');
+                setNewContent('');
+            };
+
+            const updateCS = (id, field, value) => {
+                setCsData(prev => prev.map(item => item.id === id ? { ...item, [field]: value } : item));
+            };
+
+            const deleteCS = (id) => {
+                if(confirm('이 CS 내역을 삭제하시겠습니까?')) setCsData(prev => prev.filter(i => i.id !== id));
+            }
+
+            return (
+                <div className="flex flex-col h-full bg-white rounded-lg shadow-sm border p-4 overflow-hidden">
+                    <div className="flex justify-between items-center mb-4 pb-4 border-b">
+                        <h2 className="text-xl font-bold flex items-center gap-2"><Icon name="headset" weight="fill" className="text-indigo-600"/> CS 관리 <span className="text-sm font-normal text-gray-500">({csData.length}건)</span></h2>
+                    </div>
+                    
+                    <form onSubmit={addCS} className="bg-indigo-50 p-3 rounded-lg border border-indigo-100 mb-4 flex gap-2 items-center">
+                        <input type="text" value={newNick} onChange={e=>setNewNick(e.target.value)} className="w-32 border rounded px-2 py-2 text-sm" placeholder="닉네임" />
+                        <input type="text" value={newContent} onChange={e=>setNewContent(e.target.value)} className="flex-1 border rounded px-2 py-2 text-sm" placeholder="상담 내용 입력..." />
+                        <button type="submit" className="bg-indigo-600 text-white px-4 py-2 rounded font-bold text-sm hover:bg-indigo-700">등록</button>
+                    </form>
+
+                    <div className="flex-1 overflow-y-auto border rounded bg-white">
+                        <table className="w-full text-sm text-left">
+                            <thead className="bg-gray-100 text-gray-600 sticky top-0">
+                                <tr>
+                                    <th className="p-2 border-b w-24">날짜</th>
+                                    <th className="p-2 border-b w-32">닉네임</th>
+                                    <th className="p-2 border-b">내용</th>
+                                    <th className="p-2 border-b w-16 text-center">완료</th>
+                                    <th className="p-2 border-b w-16 text-center">삭제</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y">
+                                {csData.map(item => (
+                                    <tr key={item.id} className={`group hover:bg-gray-50 ${item.isResolved ? 'bg-gray-50 opacity-60' : ''}`}>
+                                        <td className="p-2 text-xs text-gray-400">{new Date(item.date).toLocaleDateString()}</td>
+                                        <td className="p-2">
+                                            <input type="text" value={item.nickname} onChange={e=>updateCS(item.id, 'nickname', e.target.value)} className="w-full bg-transparent outline-none focus:bg-white focus:ring-1 ring-indigo-300 rounded px-1" />
+                                        </td>
+                                        <td className="p-2">
+                                            <input type="text" value={item.content} onChange={e=>updateCS(item.id, 'content', e.target.value)} className={`w-full bg-transparent outline-none focus:bg-white focus:ring-1 ring-indigo-300 rounded px-1 ${item.isResolved ? 'line-through text-gray-400' : ''}`} />
+                                        </td>
+                                        <td className="p-2 text-center">
+                                            <input type="checkbox" checked={item.isResolved} onChange={e=>updateCS(item.id, 'isResolved', e.target.checked)} className="w-4 h-4 cursor-pointer accent-indigo-600" />
+                                        </td>
+                                        <td className="p-2 text-center">
+                                            <button onClick={()=>deleteCS(item.id)} className="text-gray-300 hover:text-red-500"><Icon name="trash" weight="bold"/></button>
+                                        </td>
+                                    </tr>
+                                ))}
                             </tbody>
                         </table>
                     </div>
@@ -952,6 +1097,12 @@
             const [shippingOverrides, setShippingOverrides] = useState(() => JSON.parse(localStorage.getItem('shippingOverrides')) || {});
             const [addresses, setAddresses] = useState(() => JSON.parse(localStorage.getItem('verifiedAddresses')) || []);
             const [cardPayments, setCardPayments] = useState(() => JSON.parse(localStorage.getItem('cardPayments')) || {});
+            
+            // ✅ 안전한 초기화 (오류 수정됨)
+            const [csData, setCsData] = useState(() => {
+                try { return JSON.parse(localStorage.getItem('csHistory')) || []; } catch { return []; }
+            });
+
             const [isSettingsOpen, setIsSettingsOpen] = useState(false); 
             
             const [matchedDeposits, setMatchedDeposits] = useState(() => {
@@ -959,7 +1110,10 @@
                 return saved ? new Set(JSON.parse(saved)) : new Set();
             });
 
-            const [depositorNames, setDepositorNames] = useState(() => JSON.parse(localStorage.getItem('depositorNames')) || {});
+            // ✅ 안전한 초기화 (오류 수정됨)
+            const [depositorNames, setDepositorNames] = useState(() => {
+                try { return JSON.parse(localStorage.getItem('depositorNames')) || {}; } catch { return {}; }
+            });
 
             useEffect(() => { localStorage.setItem('youtubeOrders', JSON.stringify(orders)); }, [orders]);
             useEffect(() => { localStorage.setItem('productHistory', JSON.stringify(productHistory)); }, [productHistory]);
@@ -969,19 +1123,25 @@
             useEffect(() => { localStorage.setItem('cardPayments', JSON.stringify(cardPayments)); }, [cardPayments]);
             useEffect(() => { localStorage.setItem('matchedDeposits', JSON.stringify([...matchedDeposits])); }, [matchedDeposits]);
             useEffect(() => { localStorage.setItem('depositorNames', JSON.stringify(depositorNames)); }, [depositorNames]); 
+            useEffect(() => { localStorage.setItem('csHistory', JSON.stringify(csData)); }, [csData]);
 
             const tabs = [
                 { id: 'live', label: '라이브관제', icon: 'monitor-play' }, 
                 { id: 'customer', label: '고객관리', icon: 'address-book' }, 
+                { id: 'cs', label: 'CS관리', icon: 'headset' }, 
                 { id: 'manage', label: '주문관리(엑셀)', icon: 'file-xls' }
             ];
 
             const resetAllStatus = () => {
-                if(confirm("모든 주문, 입금, 클릭 기록을 초기화하시겠습니까?\n(주소록과 상품 가격은 유지됩니다.)")) {
+                if(confirm("모든 주문서 작업 내용과 매칭 기록, **그리고 저장된 상품 목록**을 초기화하시겠습니까?\n\n(주소록과 CS 내역은 유지됩니다.)")) {
                     setOrders([]); setCardPayments({}); setShippingOverrides({}); setMatchedDeposits(new Set());
+                    setProductHistory({}); 
+                    
                     localStorage.removeItem('youtubeOrders'); localStorage.removeItem('cardPayments'); 
                     localStorage.removeItem('shippingOverrides'); localStorage.removeItem('matchedDeposits');
-                    alert("초기화 완료!"); window.location.reload(); 
+                    localStorage.removeItem('productHistory'); 
+                    
+                    alert("작업 내역과 상품 목록이 초기화되었습니다.\n\n새로운 방송을 시작하려면 구글 시트의 기존 데이터도 삭제해주세요!"); window.location.reload(); 
                 }
             };
 
@@ -1016,7 +1176,8 @@
 
                     <main className="flex-1 overflow-hidden bg-gray-100 p-2 relative">
                         {activeTab === 'live' && (<LiveTab orders={orders} setOrders={setOrders} productHistory={productHistory} setProductHistory={setProductHistory} quickShipping={quickShipping} setQuickShipping={setQuickShipping} shippingOverrides={shippingOverrides} setShippingOverrides={setShippingOverrides} bankAccount={bankAccount} setBankAccount={setBankAccount} googleScriptUrl={GOOGLE_API_URL} addresses={addresses} setAddresses={setAddresses} cardPayments={cardPayments} setCardPayments={setCardPayments} resetAllStatus={resetAllStatus} matchedDeposits={matchedDeposits} setMatchedDeposits={setMatchedDeposits} depositorNames={depositorNames} setDepositorNames={setDepositorNames} />)}
-                        {activeTab === 'customer' && (<CustomerTab addresses={addresses} setAddresses={setAddresses} />)}
+                        {activeTab === 'customer' && (<CustomerTab addresses={addresses} setAddresses={setAddresses} googleScriptUrl={GOOGLE_API_URL} />)}
+                        {activeTab === 'cs' && (<CSTab csData={csData} setCsData={setCsData} />)}
                         {activeTab === 'manage' && (<OrderManagementTab orders={orders} shippingOverrides={shippingOverrides} quickShipping={quickShipping} addresses={addresses} />)}
                     </main>
                 </div>
