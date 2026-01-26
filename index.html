@@ -54,7 +54,8 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef, useCallback } = React;
 
-        const GOOGLE_API_URL = "https://script.google.com/macros/s/AKfycby3hYSeVGOrFBzAtRzEZMP2zTZsv4JCU4vvcQRyUypcXSGJSJ_A3eNIi_CzL4x-upUT9w/exec";
+        // ✅ 새로 배포된 URL 적용
+        const GOOGLE_API_URL = "https://script.google.com/macros/s/AKfycbynMT3oxwRHDSc1_Jz84I0KXmk8zJXcil3PfcvnSiIvlrAuSBNAc4KDFKJPhvJjv-l5mQ/exec";
         const FIXED_BANK_ACCOUNT = "카카오뱅크 김선정\n7942 18 01611";
 
         const Icon = ({ name, className="", weight="regular" }) => <i className={`ph ph-${name} ${className}`} data-phosphor-icon-weight={weight}></i>;
@@ -109,15 +110,15 @@
 
             const fetchData = async () => {
                 try {
-                    // ✅ [수정] 헤더 제거하여 CORS Preflight 방지 및 단순 요청으로 변경
+                    // 🔴 [중요] headers 제거됨 (CORS 해결)
+                    // URL에 timestamp를 붙여 캐싱 방지
                     const fetchUrl = `${googleScriptUrl}?t=${Date.now()}`;
-                    const res = await fetch(fetchUrl);
+                    const res = await fetch(fetchUrl); 
                     
                     if (!res.ok) throw new Error(`HTTP ${res.status}`);
                     
                     const text = await res.text();
                     
-                    // ✅ [수정] HTML 응답(로그인 페이지) 감지 로직 추가
                     if (text.trim().startsWith("<!DOCTYPE html") || text.includes("Google Accounts")) {
                         setConnectionStatus({ 
                             code: 'error_auth', 
@@ -130,7 +131,6 @@
                     try { 
                         data = JSON.parse(text); 
                     } catch (e) { 
-                        // JSON 파싱 실패 시 원본 텍스트 확인
                         console.error("JSON 파싱 에러. 수신된 데이터:", text);
                         throw new Error("데이터 형식 오류"); 
                     }
@@ -861,8 +861,7 @@
                 try {
                     const res = await fetch(googleScriptUrl + "?action=get_addresses", {
                         method: 'GET',
-                        redirect: 'follow',
-                        headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+                        // headers 제거됨 (CORS 해결)
                     });
                     const data = await res.json();
                     if (data && data.addresses && Array.isArray(data.addresses)) {
