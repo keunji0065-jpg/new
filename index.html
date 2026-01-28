@@ -694,10 +694,48 @@
         const OrderManagementTab = ({ orders, shippingOverrides, quickShipping, addresses }) => {
             const handleExportProducts = () => { const summary = {}; orders.forEach(o => { if(o.isCancelled) return; const name = o.product || '(상품명 없음)'; if (!summary[name]) summary[name] = 0; summary[name] += Number(o.quantity); }); const data = Object.entries(summary).map(([product, qty]) => ({ '상품명': product, '총필요수량': qty })); downloadExcel(data, '상품별_발주리스트'); };
             const handleExportCustomers = () => { const groups = {}; orders.forEach(o => { if (!groups[o.customer]) groups[o.customer] = []; groups[o.customer].push(o); }); let excelRows = []; Object.entries(groups).forEach(([nick, items]) => { const activeItems = items.filter(i => !i.isCancelled); if(activeItems.length === 0) return; const addrInfo = addresses.find(a => a.nickname.trim() === nick.trim()) || {}; const fullAddress = addrInfo.zipcode ? `(${addrInfo.zipcode}) ${addrInfo.address || ''}` : (addrInfo.address || ''); const createRow = (productValue) => ({ '날짜시간': new Date().toLocaleString(), '공란1': '', '공란2': '', '닉네임': nick, '주문제품(수량)': productValue, '이름': addrInfo.realname || '', '핸드폰번호': addrInfo.phone || '', '주소': fullAddress, '배송메모': addrInfo.memo || '' }); excelRows.push(createRow(`[ ${nick} ]`)); activeItems.forEach(item => { const qtyPart = item.quantity > 1 ? ` ★ ${item.quantity}개` : ''; excelRows.push(createRow(`${item.product}${qtyPart}`)); }); }); downloadExcel(excelRows, '고객별_정산_배송리스트'); };
+            
+            // ✅ [추가] 전체 주문 원본 데이터 다운로드
+            const handleExportAllRawData = () => {
+                const data = orders.map(o => {
+                    const addrInfo = addresses.find(a => a.nickname.trim() === o.customer.trim()) || {};
+                    const currentShipping = shippingOverrides[o.customer] !== undefined ? shippingOverrides[o.customer] : Number(quickShipping);
+                    
+                    return {
+                        '주문ID': o.id,
+                        '작성일시': new Date(o.id).toLocaleString(),
+                        '닉네임': o.customer,
+                        '상품명': o.product,
+                        '수량': o.quantity,
+                        '가격': o.price,
+                        '배송비': currentShipping,
+                        '입금액': o.deposit || 0,
+                        '주문취소여부': o.isCancelled ? 'Y' : 'N',
+                        '수령인': addrInfo.realname || '',
+                        '전화번호': addrInfo.phone || '',
+                        '우편번호': addrInfo.zipcode || '',
+                        '주소': addrInfo.address || '',
+                        '배송메모': addrInfo.memo || ''
+                    };
+                });
+                downloadExcel(data, '전체_주문_상세내역');
+            };
+
             return (
-                <div className="flex flex-col items-center justify-center h-full p-10 gap-6">
-                    <div className="bg-white p-8 rounded-xl shadow-lg border text-center w-full max-w-md"><div className="text-4xl mb-4">📦</div><h2 className="text-xl font-bold mb-2">발주용 품목 집계</h2><p className="text-gray-500 mb-6 text-sm">어떤 상품이 몇 개 필요한지 정리해드립니다.</p><button onClick={handleExportProducts} className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2"><Icon name="file-xls" weight="fill" size={20}/> 엑셀 다운로드</button></div>
-                    <div className="bg-white p-8 rounded-xl shadow-lg border text-center w-full max-w-md"><div className="text-4xl mb-4">👥</div><h2 className="text-xl font-bold mb-2">배송용 고객 리스트</h2><p className="text-gray-500 mb-6 text-sm">주소, 전화번호 포함된 배송 명단을 뽑습니다.</p><button onClick={handleExportCustomers} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2"><Icon name="file-xls" weight="fill" size={20}/> 엑셀 다운로드</button></div>
+                <div className="flex flex-wrap items-center justify-center h-full p-10 gap-6 overflow-y-auto content-center">
+                    <div className="bg-white p-8 rounded-xl shadow-lg border text-center w-full max-w-sm">
+                        <div className="text-4xl mb-4">📦</div><h2 className="text-xl font-bold mb-2">발주용 품목 집계</h2><p className="text-gray-500 mb-6 text-sm">어떤 상품이 몇 개 필요한지 정리해드립니다.</p>
+                        <button onClick={handleExportProducts} className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2"><Icon name="file-xls" weight="fill" size={20}/> 엑셀 다운로드</button>
+                    </div>
+                    <div className="bg-white p-8 rounded-xl shadow-lg border text-center w-full max-w-sm">
+                        <div className="text-4xl mb-4">👥</div><h2 className="text-xl font-bold mb-2">배송용 고객 리스트</h2><p className="text-gray-500 mb-6 text-sm">주소, 전화번호 포함된 배송 명단을 뽑습니다.</p>
+                        <button onClick={handleExportCustomers} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2"><Icon name="file-xls" weight="fill" size={20}/> 엑셀 다운로드</button>
+                    </div>
+                    {/* ✅ [추가] 전체 데이터 다운로드 버튼 */}
+                    <div className="bg-white p-8 rounded-xl shadow-lg border text-center w-full max-w-sm">
+                        <div className="text-4xl mb-4">📑</div><h2 className="text-xl font-bold mb-2">전체 주문 원본</h2><p className="text-gray-500 mb-6 text-sm">모든 주문 내역과 상세 정보를 저장합니다.</p>
+                        <button onClick={handleExportAllRawData} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2"><Icon name="file-csv" weight="fill" size={20}/> 엑셀 다운로드</button>
+                    </div>
                 </div>
             );
         };
