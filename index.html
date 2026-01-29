@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>깔로 주문서 PRO (최종원본)</title>
+    <title>깔로 주문서 PRO (최종통합)</title>
     
     <!-- 라이브러리 로드 -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin="anonymous"></script>
@@ -50,9 +50,10 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef, useCallback } = React;
 
-        const DEFAULT_GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby-RMXlBDqFMFFx-hqxmWBoQfsdrHyyNmCDUZwB6Caxfg4KrAil3_yUP0uAAhKyv1XB7A/exec";
-        const DEFAULT_CUSTOMER_SHEET_ID = "1zlL6R8iCy-6ZRMqj6dbefhkwSyRzHibDYBNJLmE35bM";
+        const DEFAULT_GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzyIJYsEH9MNxwtbnkF31dKEjYb996KoFQja5UYVAV5ObEyuGUAMTxWdH3ql9nLM-gW8A/exec";
         const FIXED_BANK_ACCOUNT = "카카오뱅크 김선정\n7942 18 01611";
+        const DEFAULT_CUSTOMER_SHEET_ID = "1zlL6R8iCy-6ZRMqj6dbefhkwSyRzHibDYBNJLmE35bM";
+        
         const Icon = ({ name, className="", weight="regular", size }) => <i className={`ph ph-${name} ${className}`} data-phosphor-icon-weight={weight} style={{fontSize: size}}></i>;
 
         const downloadExcel = (data, fileName) => {
@@ -65,16 +66,8 @@
         const Modal = ({ isOpen, type, message, onConfirm, onCancel, initialValue }) => {
             const [inputValue, setInputValue] = useState(initialValue || '');
             const inputRef = useRef(null);
-
-            useEffect(() => {
-                if (isOpen && type === 'prompt' && inputRef.current) {
-                    setInputValue(initialValue || '');
-                    setTimeout(() => inputRef.current.focus(), 100);
-                }
-            }, [isOpen, type, initialValue]);
-
+            useEffect(() => { if (isOpen && type === 'prompt' && inputRef.current) { setInputValue(initialValue || ''); setTimeout(() => inputRef.current.focus(), 100); } }, [isOpen, type, initialValue]);
             if (!isOpen) return null;
-
             return (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] animate-fade-in" onClick={type === 'alert' ? onConfirm : undefined}>
                     <div className="bg-white rounded-xl shadow-2xl p-6 w-80 max-w-sm animate-scale-up" onClick={e => e.stopPropagation()}>
@@ -85,9 +78,7 @@
                             <h3 className="text-lg font-bold text-center text-gray-800 mb-2">{type === 'confirm' ? '확인' : type === 'prompt' ? '입력' : '알림'}</h3>
                             <p className="text-sm text-gray-600 text-center whitespace-pre-wrap leading-relaxed">{message}</p>
                         </div>
-                        {type === 'prompt' && (
-                            <input ref={inputRef} type="text" value={inputValue} onChange={(e) => setInputValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && onConfirm(inputValue)} className="w-full border rounded-lg px-3 py-2 mb-5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-gray-50"/>
-                        )}
+                        {type === 'prompt' && (<input ref={inputRef} type="text" value={inputValue} onChange={(e) => setInputValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && onConfirm(inputValue)} className="w-full border rounded-lg px-3 py-2 mb-5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-gray-50"/>)}
                         <div className="flex gap-2">
                             {type !== 'alert' && (<button onClick={onCancel} className="flex-1 py-2.5 rounded-lg text-sm font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 transition-colors">취소</button>)}
                             <button onClick={() => type === 'prompt' ? onConfirm(inputValue) : onConfirm()} className="flex-1 py-2.5 rounded-lg text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 transition-colors shadow-sm">확인</button>
@@ -97,7 +88,7 @@
             );
         };
 
-        const LiveTab = ({ orders, setOrders, productHistory, setProductHistory, quickShipping, setQuickShipping, shippingOverrides, setShippingOverrides, addresses, cardPayments, setCardPayments, resetAllStatus, matchedDeposits, setMatchedDeposits, depositorNames, setDepositorNames, googleScriptUrl, clickedChats, setClickedChats, openModal, keywords, setKeywords, sentAddressRequests, setSentAddressRequests }) => {
+        const LiveTab = ({ orders, setOrders, productHistory, setProductHistory, quickShipping, setQuickShipping, shippingOverrides, setShippingOverrides, bankAccount, googleScriptUrl, addresses, cardPayments, setCardPayments, resetAllStatus, matchedDeposits, setMatchedDeposits, depositorNames, setDepositorNames, clickedChats, setClickedChats, openModal, keywords, setKeywords, sentAddressRequests, setSentAddressRequests }) => {
             const [chats, setChats] = useState([]);
             const [serverDeposits, setServerDeposits] = useState([]); 
             const [manualDeposits, setManualDeposits] = useState([]); 
@@ -119,22 +110,14 @@
             const [editingQuantityId, setEditingQuantityId] = useState(null);
 
             const fetchData = async () => {
-                if (!googleScriptUrl) {
-                    setConnectionStatus({ code: 'error_config', msg: '설정에서 URL을 입력해주세요.' });
-                    return;
-                }
+                if (!googleScriptUrl) { setConnectionStatus({ code: 'error_config', msg: '설정에서 URL을 입력해주세요.' }); return; }
                 try {
                     const fetchUrl = `${googleScriptUrl}?t=${Date.now()}`;
                     const res = await fetch(fetchUrl); 
                     if (!res.ok) throw new Error(`HTTP 오류 ${res.status}`);
                     const text = await res.text();
-                    
-                    if (text.trim().startsWith("<!DOCTYPE html") || text.includes("Google Accounts")) {
-                        setConnectionStatus({ code: 'error_auth', msg: '⚠️ 설정 > 권한을 "모든 사용자"로 변경필요' });
-                        return;
-                    }
+                    if (text.trim().startsWith("<!DOCTYPE html") || text.includes("Google Accounts")) { setConnectionStatus({ code: 'error_auth', msg: '⚠️ 구글 배포 권한 확인 필요' }); return; }
                     const data = JSON.parse(text);
-                    
                     if (data.chats) {
                         const cleanChats = data.chats.map(chat => ({ ...chat, nickname: chat.nickname.replace(/@/g, '').trim() }));
                         setChats(cleanChats); 
@@ -145,10 +128,7 @@
                         const stableDeposits = data.deposits.map((d, i) => ({ ...d, id: d.uid || `dep_${d.name}_${d.amount}_${i}`, source: 'server' }));
                         setServerDeposits(stableDeposits);
                     }
-                } catch (e) {
-                    console.warn("통신 실패:", e);
-                    setConnectionStatus({ code: 'error_fetch', msg: '🔴 연결 실패 (URL/권한 확인)' });
-                }
+                } catch (e) { console.warn("통신 실패:", e); setConnectionStatus({ code: 'error_fetch', msg: '연결 재시도 중...' }); }
             };
             useEffect(() => { fetchData(); const interval = setInterval(fetchData, 5000); return () => clearInterval(interval); }, [googleScriptUrl]);
 
@@ -168,25 +148,9 @@
                     const currentShipping = shippingOverrides[o.customer] !== undefined ? shippingOverrides[o.customer] : Number(quickShipping);
                     return { nickname: o.customer, product: o.product, qty: o.quantity, price: o.price, deposit: o.deposit, shipping: currentShipping, grandTotal: 0, address: addr.address || '', zipcode: addr.zipcode || '', phone: addr.phone || '', realname: addr.realname || '', memo: addr.memo || '' };
                 });
-                try { await fetch(googleScriptUrl, { method: 'POST', body: JSON.stringify(saveList), mode: 'no-cors' }); } 
-                catch(e) { console.error("저장 실패", e); } finally { setIsSaving(false); }
+                try { await fetch(googleScriptUrl, { method: 'POST', body: JSON.stringify(saveList), mode: 'no-cors' }); } catch(e) { console.error("저장 실패", e); } finally { setIsSaving(false); }
             };
             useEffect(() => { const saveInterval = setInterval(autoSaveToGoogleSheet, 60000); return () => clearInterval(saveInterval); }, [orders, shippingOverrides, quickShipping, googleScriptUrl]); 
-
-            const handleLoadOrders = async () => {
-                openModal("서버에 저장된 주문서를 불러오시겠습니까?\n(현재 작업 중인 내용은 덮어씌워집니다!)", 'confirm', async () => {
-                    if (!googleScriptUrl) return openModal("설정에서 URL을 입력해주세요.", 'alert');
-                    try {
-                        const res = await fetch(`${googleScriptUrl}?action=get_orders&t=${Date.now()}`);
-                        const data = await res.json();
-                        if (data && data.orders && Array.isArray(data.orders)) {
-                            const loadedOrders = data.orders.map((o, idx) => ({ id: Date.now() + idx, customer: o.customer, product: o.product, quantity: Number(o.quantity), price: Number(o.price), deposit: Number(o.deposit), isCancelled: false }));
-                            setOrders(loadedOrders);
-                            openModal(`총 ${loadedOrders.length}건의 주문을 불러왔습니다!`, 'alert');
-                        } else { openModal("저장된 주문 내역이 없습니다.", 'alert'); }
-                    } catch(e) { openModal("로드 실패: " + e.message, 'alert'); }
-                });
-            };
 
             const addOrderLogic = (nickname, content, qty = 1) => {
                 const cleanNick = nickname.replace(/@/g, '').trim();
@@ -236,21 +200,8 @@
 
             const handleFullDepositToggle = (nick, grandTotal, currentDeposit) => {
                 const isPaid = currentDeposit >= grandTotal;
-                if (isPaid) {
-                    openModal(`'${nick}'님의 입금 상태를 '미납(0원)'으로 변경하시겠습니까?`, 'confirm', () => {
-                        setOrders(prev => prev.map(o => o.customer === nick ? { ...o, deposit: 0 } : o));
-                    });
-                } else {
-                    setOrders(prev => {
-                        let processed = false;
-                        return prev.map(o => {
-                            if (o.customer === nick) {
-                                if (!processed) { processed = true; return { ...o, deposit: grandTotal }; } else { return { ...o, deposit: 0 }; }
-                            }
-                            return o;
-                        });
-                    });
-                }
+                if (isPaid) { openModal(`'${nick}'님의 입금 상태를 '미납(0원)'으로 변경하시겠습니까?`, 'confirm', () => { setOrders(prev => prev.map(o => o.customer === nick ? { ...o, deposit: 0 } : o)); }); } 
+                else { setOrders(prev => { let processed = false; return prev.map(o => { if (o.customer === nick) { if (!processed) { processed = true; return { ...o, deposit: grandTotal }; } else { return { ...o, deposit: 0 }; } } return o; }); }); }
             };
 
             const resetUserDeposit = (nick) => { openModal(`'${nick}'님의 입금액을 0원으로 초기화하시겠습니까?`, 'confirm', () => { setOrders(prev => prev.map(o => o.customer === nick ? { ...o, deposit: 0 } : o)); }); };
@@ -264,38 +215,16 @@
                     } return o;
                 }));
             };
-
             const handleQuantityUpdate = (itemId, newQtyVal) => {
                 const newQty = parseInt(newQtyVal, 10);
                 if (isNaN(newQty) || newQty < 1) return setEditingQuantityId(null); 
-                setOrders(prev => prev.map(o => {
-                    if (o.id === itemId) {
-                        let unitPrice = 0;
-                        if (o.quantity > 0 && o.price > 0) { unitPrice = o.price / o.quantity; } else if (productHistory[o.product]) { unitPrice = productHistory[o.product]; }
-                        return { ...o, quantity: newQty, price: unitPrice * newQty };
-                    }
-                    return o;
-                }));
+                setOrders(prev => prev.map(o => { if (o.id === itemId) { let unitPrice = 0; if (o.quantity > 0 && o.price > 0) { unitPrice = o.price / o.quantity; } else if (productHistory[o.product]) { unitPrice = productHistory[o.product]; } return { ...o, quantity: newQty, price: unitPrice * newQty }; } return o; }));
                 setEditingQuantityId(null);
             };
-
             const handleShippingChange = (nick, val) => { setShippingOverrides(prev => ({ ...prev, [nick]: Number(val) })); };
-            const handleNicknameEdit = (oldNick) => { 
-                openModal(`'${oldNick}'님의 닉네임을 변경합니다.`, 'prompt', (newNickRaw) => {
-                    if (newNickRaw && newNickRaw !== oldNick) { 
-                        const newNick = newNickRaw.replace(/@/g, '').trim(); 
-                        setOrders(prev => prev.map(o => o.customer === oldNick ? { ...o, customer: newNick } : o)); 
-                        if (shippingOverrides[oldNick]) { const newOverrides = { ...shippingOverrides, [newNick]: shippingOverrides[oldNick] }; delete newOverrides[oldNick]; setShippingOverrides(newOverrides); } 
-                        if (selectedNick === oldNick) setSelectedNick(newNick); 
-                    } 
-                }, null, oldNick);
-            };
+            const handleNicknameEdit = (oldNick) => { openModal(`'${oldNick}'님의 닉네임을 변경합니다.`, 'prompt', (newNickRaw) => { if (newNickRaw && newNickRaw !== oldNick) { const newNick = newNickRaw.replace(/@/g, '').trim(); setOrders(prev => prev.map(o => o.customer === oldNick ? { ...o, customer: newNick } : o)); if (shippingOverrides[oldNick]) { const newOverrides = { ...shippingOverrides, [newNick]: shippingOverrides[oldNick] }; delete newOverrides[oldNick]; setShippingOverrides(newOverrides); } if (selectedNick === oldNick) setSelectedNick(newNick); } }, null, oldNick); };
             const handleOrderCancel = (id) => { setOrders(prev => prev.map(o => o.id === id ? { ...o, isCancelled: !o.isCancelled } : o)); };
-            const handleOrderDelete = (id) => { 
-                openModal("이 주문 항목을 완전히 삭제하시겠습니까?", 'confirm', () => {
-                    setOrders(prev => prev.filter(o => o.id !== id)); 
-                });
-            };
+            const handleOrderDelete = (id) => { openModal("이 주문 항목을 완전히 삭제하시겠습니까?", 'confirm', () => { setOrders(prev => prev.filter(o => o.id !== id)); }); };
 
             const copyOrderSheet = (nick, items, grandTotal, depositTotal, balance, isCard) => {
                 const activeItems = items.filter(i => !i.isCancelled);
@@ -306,160 +235,43 @@
                 const currentShipping = shippingOverrides[nick] !== undefined ? shippingOverrides[nick] : Number(quickShipping);
                 
                 let msg = `💙 ${nick} 님 💙\n\n\n${itemListText}\n배송비 ${currentShipping.toLocaleString()}원\n\n총 주문금액 ${grandTotal.toLocaleString()}원\n------------------\n`;
-                if (isCard) {
-                    const cardBase = Math.abs(balance); 
-                    if (depositTotal > 0) msg += `[입금확인]\n${depositTotal.toLocaleString()}원\n\n`;
-                    msg += `[카드결제]\n금액 ${cardBase.toLocaleString()}원\n10% ${(cardBase * 0.1).toLocaleString()}원\n👉총 ${(cardBase * 1.1).toLocaleString()}원 예정\n\n핸드폰번호 남겨주세요🌸\n------------------\n\n`;
-                } else {
-                    const isPaid = (balance <= 0) && (grandTotal > 0) && !hasZeroPrice;
-                    if (depositTotal > 0) msg += `[입금확인]\n${depositTotal.toLocaleString()}원\n------------------\n\n`;
-                    if (isPaid) msg += `완납 확인! 감사합니다 😍\n------------------\n\n`;
-                    else msg += `[미입금]\n총 입금하실 금액\n👉 ${(balance > 0 ? balance : 0).toLocaleString()}원 \n\n${FIXED_BANK_ACCOUNT}\n입금 부탁드립니다 🙏\n------------------\n\n`;
-                }
+                if (isCard) { const cardBase = Math.abs(balance); if (depositTotal > 0) msg += `[입금확인]\n${depositTotal.toLocaleString()}원\n\n`; msg += `[카드결제]\n금액 ${cardBase.toLocaleString()}원\n10% ${(cardBase * 0.1).toLocaleString()}원\n👉총 ${(cardBase * 1.1).toLocaleString()}원 예정\n\n핸드폰번호 남겨주세요🌸\n------------------\n\n`; } 
+                else { const isPaid = (balance <= 0) && (grandTotal > 0) && !hasZeroPrice; if (depositTotal > 0) msg += `[입금확인]\n${depositTotal.toLocaleString()}원\n------------------\n\n`; if (isPaid) msg += `완납 확인! 감사합니다 😍\n------------------\n\n`; else msg += `[미입금]\n총 입금하실 금액\n👉 ${(balance > 0 ? balance : 0).toLocaleString()}원 \n\n${FIXED_BANK_ACCOUNT}\n입금 부탁드립니다 🙏\n------------------\n\n`; }
+                if (!addr) { if (!sentAddressRequests.has(nick)) { msg += `방송마다 1회\n하단의 주문서(배송지입력) 필수!!\n\n이미 참여한 설문 일 경우\n▫ 답변 수정하기 \n▫ 또는 설문 추가 참여\n\n미입력이 많아 계속 안내합니다. \n양해부탁드립니다.`; setSentAddressRequests(prev => new Set(prev).add(nick)); } }
 
-                if (!addr) {
-                    if (!sentAddressRequests.has(nick)) {
-                        msg += `방송마다 1회\n하단의 주문서(배송지입력) 필수!!\n\n이미 참여한 설문 일 경우\n▫ 답변 수정하기 \n▫ 또는 설문 추가 참여\n\n미입력이 많아 계속 안내합니다. \n양해부탁드립니다.`;
-                        setSentAddressRequests(prev => new Set(prev).add(nick)); 
-                    }
-                }
-
-                const textArea = document.createElement("textarea");
-                textArea.value = msg;
-                document.body.appendChild(textArea);
-                textArea.select();
-                try { 
-                    document.execCommand('copy'); 
-                    setCopyStatus(prev => ({ ...prev, [nick]: true })); 
-                    setTimeout(() => { setCopyStatus(prev => ({ ...prev, [nick]: false })); }, 2000); 
-                } catch (err) { openModal('복사 실패', 'alert'); }
+                const textArea = document.createElement("textarea"); textArea.value = msg; document.body.appendChild(textArea); textArea.select();
+                try { document.execCommand('copy'); setCopyStatus(prev => ({ ...prev, [nick]: true })); setTimeout(() => { setCopyStatus(prev => ({ ...prev, [nick]: false })); }, 2000); } catch (err) { openModal('복사 실패', 'alert'); }
                 document.body.removeChild(textArea);
             };
 
-            const filteredChats = useMemo(() => {
-                let result = chats;
-                const keywordsArray = Array.from(keywords || []);
-                if (showKeywordOnly) result = result.filter(c => keywordsArray.some(k => c.content.includes(k)));
-                if (chatSearch) result = result.filter(c => c.nickname.includes(chatSearch) || c.content.includes(chatSearch));
-                return result;
-            }, [chats, chatSearch, showKeywordOnly, keywords]);
-
-            const filteredDeposits = useMemo(() => {
-                let result = [...allDeposits];
-                if (depositSearch) result = result.filter(d => (d.name||'').includes(depositSearch) || String(d.amount).includes(depositSearch));
-                if (selectedNick) {
-                    const targetNick = String(selectedNick).replace(/\s/g, '').toLowerCase(); 
-                    const depositorName = depositorNames && depositorNames[selectedNick];
-                    const targetReal = depositorName ? String(depositorName).replace(/\s/g, '').toLowerCase() : '';
-                    result.sort((a, b) => {
-                        const nameA = a.name ? String(a.name).replace(/\s/g, '').toLowerCase() : '';
-                        const nameB = b.name ? String(b.name).replace(/\s/g, '').toLowerCase() : '';
-                        const getScore = (val, target) => { if (!target || !val) return 3; if (val === target) return 0; if (val.startsWith(target)) return 1; if (val.includes(target)) return 2; return 3; };
-                        const scoreA = Math.min(getScore(nameA, targetNick), getScore(nameA, targetReal));
-                        const scoreB = Math.min(getScore(nameB, targetNick), getScore(nameB, targetReal));
-                        return scoreA - scoreB;
-                    });
-                }
-                return result;
-            }, [allDeposits, depositSearch, selectedNick, depositorNames]);
-
+            const filteredChats = useMemo(() => { let result = chats; const keywordsArray = Array.from(keywords || []); if (showKeywordOnly) result = result.filter(c => keywordsArray.some(k => c.content.includes(k))); if (chatSearch) result = result.filter(c => c.nickname.includes(chatSearch) || c.content.includes(chatSearch)); return result; }, [chats, chatSearch, showKeywordOnly, keywords]);
+            const filteredDeposits = useMemo(() => { let result = [...allDeposits]; if (depositSearch) result = result.filter(d => (d.name||'').includes(depositSearch) || String(d.amount).includes(depositSearch)); if (selectedNick) { const targetNick = String(selectedNick).replace(/\s/g, '').toLowerCase(); const depositorName = depositorNames && depositorNames[selectedNick]; const targetReal = depositorName ? String(depositorName).replace(/\s/g, '').toLowerCase() : ''; result.sort((a, b) => { const nameA = a.name ? String(a.name).replace(/\s/g, '').toLowerCase() : ''; const nameB = b.name ? String(b.name).replace(/\s/g, '').toLowerCase() : ''; const getScore = (val, target) => { if (!target || !val) return 3; if (val === target) return 0; if (val.startsWith(target)) return 1; if (val.includes(target)) return 2; return 3; }; const scoreA = Math.min(getScore(nameA, targetNick), getScore(nameA, targetReal)); const scoreB = Math.min(getScore(nameB, targetNick), getScore(nameB, targetReal)); return scoreA - scoreB; }); } return result; }, [allDeposits, depositSearch, selectedNick, depositorNames]);
             const totalDepositAmount = useMemo(() => filteredDeposits.reduce((sum, d) => sum + Number(d.amount), 0), [filteredDeposits]);
-
-            const filteredGroupedOrders = useMemo(() => {
-                const groups = {};
-                orders.forEach(o => { if (!groups[o.customer]) groups[o.customer] = []; groups[o.customer].push(o); });
-                return Object.entries(groups).filter(([nick, items]) => {
-                    if (orderSearch) {
-                        const term = orderSearch.toLowerCase();
-                        if (!nick.toLowerCase().includes(term) && !items.some(i => i.product && i.product.toLowerCase().includes(term))) return false;
-                    }
-                    const isCard = cardPayments[nick];
-                    const activeItems = items.filter(i => !i.isCancelled);
-                    const productTotal = activeItems.reduce((sum, i) => sum + Number(i.price), 0);
-                    const currentShipping = shippingOverrides[nick] !== undefined ? shippingOverrides[nick] : Number(quickShipping);
-                    const depositTotal = items.reduce((sum, i) => sum + (i.deposit || 0), 0);
-                    const grandTotal = productTotal + (activeItems.length > 0 ? currentShipping : 0);
-                    const balance = grandTotal - depositTotal;
-                    const isPaid = (balance <= 0) && (grandTotal > 0) && !activeItems.some(i => Number(i.price) === 0);
-                    
-                    if (filterStatus === 'unpaid') { if (isCard || isPaid) return false; }
-                    if (filterStatus === 'paid') { if (!isPaid && !isCard) return false; }
-                    return true;
-                });
-            }, [orders, orderSearch, filterStatus, shippingOverrides, quickShipping, cardPayments]);
-
+            const filteredGroupedOrders = useMemo(() => { const groups = {}; orders.forEach(o => { if (!groups[o.customer]) groups[o.customer] = []; groups[o.customer].push(o); }); return Object.entries(groups).filter(([nick, items]) => { if (orderSearch) { const term = orderSearch.toLowerCase(); if (!nick.toLowerCase().includes(term) && !items.some(i => i.product && i.product.toLowerCase().includes(term))) return false; } const isCard = cardPayments[nick]; const activeItems = items.filter(i => !i.isCancelled); const productTotal = activeItems.reduce((sum, i) => sum + Number(i.price), 0); const currentShipping = shippingOverrides[nick] !== undefined ? shippingOverrides[nick] : Number(quickShipping); const depositTotal = items.reduce((sum, i) => sum + (i.deposit || 0), 0); const grandTotal = productTotal + (activeItems.length > 0 ? currentShipping : 0); const balance = grandTotal - depositTotal; const isPaid = (balance <= 0) && (grandTotal > 0) && !activeItems.some(i => Number(i.price) === 0); if (filterStatus === 'unpaid') { if (isCard || isPaid) return false; } if (filterStatus === 'paid') { if (!isPaid && !isCard) return false; } return true; }); }, [orders, orderSearch, filterStatus, shippingOverrides, quickShipping, cardPayments]);
             const totalItemsCount = useMemo(() => { let count = 0; filteredGroupedOrders.forEach(([_, items]) => { count += items.filter(i => !i.isCancelled).length; }); return count; }, [filteredGroupedOrders]);
-
-            const dashboardStats = useMemo(() => {
-                let totalSales = 0, totalDeposit = 0, totalUnpaid = 0, totalCardExpected = 0;
-                const groups = {};
-                orders.forEach(o => { if (!groups[o.customer]) groups[o.customer] = []; groups[o.customer].push(o); });
-                Object.entries(groups).forEach(([nick, items]) => {
-                    const activeItems = items.filter(i => !i.isCancelled);
-                    if (activeItems.length === 0) return;
-                    const isCard = cardPayments[nick];
-                    const currentShipping = shippingOverrides[nick] !== undefined ? shippingOverrides[nick] : Number(quickShipping);
-                    const productTotal = activeItems.reduce((sum, i) => sum + Number(i.price), 0);
-                    const depositTotal = items.reduce((sum, i) => sum + (i.deposit || 0), 0);
-                    const grandTotal = productTotal + currentShipping;
-                    const balance = grandTotal - depositTotal;
-                    totalSales += grandTotal;
-                    totalDeposit += depositTotal;
-                    if (balance > 0) { if (isCard) totalCardExpected += (balance * 1.1); else totalUnpaid += balance; }
-                });
-                return { totalSales, totalDeposit, totalUnpaid, totalCardExpected };
-            }, [orders, shippingOverrides, quickShipping, cardPayments]);
+            const dashboardStats = useMemo(() => { let totalSales = 0, totalDeposit = 0, totalUnpaid = 0, totalCardExpected = 0; const groups = {}; orders.forEach(o => { if (!groups[o.customer]) groups[o.customer] = []; groups[o.customer].push(o); }); Object.entries(groups).forEach(([nick, items]) => { const activeItems = items.filter(i => !i.isCancelled); if (activeItems.length === 0) return; const isCard = cardPayments[nick]; const currentShipping = shippingOverrides[nick] !== undefined ? shippingOverrides[nick] : Number(quickShipping); const productTotal = activeItems.reduce((sum, i) => sum + Number(i.price), 0); const depositTotal = items.reduce((sum, i) => sum + (i.deposit || 0), 0); const grandTotal = productTotal + currentShipping; const balance = grandTotal - depositTotal; totalSales += grandTotal; totalDeposit += depositTotal; if (balance > 0) { if (isCard) totalCardExpected += (balance * 1.1); else totalUnpaid += balance; } }); return { totalSales, totalDeposit, totalUnpaid, totalCardExpected }; }, [orders, shippingOverrides, quickShipping, cardPayments]);
 
             return (
                 <div className="flex h-full gap-2 p-2 overflow-hidden bg-gray-50 text-slate-800">
                     <datalist id="product-list">{Object.keys(productHistory).map(name => <option key={name} value={name} />)}</datalist>
                     <div className="w-[30%] flex flex-col bg-white border rounded-lg shadow-sm overflow-hidden">
                         <div className="p-2 bg-indigo-50 border-b flex flex-col gap-2">
-                            <div className="font-bold text-indigo-700 flex items-center justify-between">
-                                <div className="flex items-center gap-2"><span className="flex items-center gap-1"><Icon name="youtube-logo" weight="fill" className="text-red-600"/> 라이브 댓글</span><button onClick={() => setShowKeywordOnly(!showKeywordOnly)} className={`flex items-center justify-center w-6 h-6 rounded-full transition-all ${showKeywordOnly ? 'bg-blue-600 text-white shadow-sm' : 'bg-white text-gray-400 border border-gray-200 hover:text-blue-500'}`}><Icon name="target" weight={showKeywordOnly ? "fill" : "bold"} size={14} /></button></div>
-                                <span className="text-xs text-gray-500">{filteredChats.length}건</span>
-                            </div>
-                            <div className="flex flex-col gap-2 bg-white p-2 rounded border border-indigo-100">
-                                <form onSubmit={handleAddKeyword} className="flex gap-1"><input type="text" value={keywordInput} onChange={(e) => setKeywordInput(e.target.value)} placeholder="키워드 추가" className="flex-1 text-xs border rounded px-2 py-1 outline-none" /><button type="submit" className="bg-blue-500 text-white px-2 py-1 rounded text-xs font-bold">추가</button></form>
-                                {keywords.size > 0 && <div className="flex flex-wrap gap-1 max-h-16 overflow-y-auto scrollbar-thin mt-1 p-1 bg-gray-50 border rounded">{[...keywords].map(k => <span key={k} onClick={() => handleRemoveKeyword(k)} className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-[10px] cursor-pointer hover:bg-red-100 hover:text-red-600 flex items-center gap-1 shrink-0">{k} <Icon name="x" weight="bold"/></span>)}</div>}
-                            </div>
+                            <div className="font-bold text-indigo-700 flex items-center justify-between"><div className="flex items-center gap-2"><span className="flex items-center gap-1"><Icon name="youtube-logo" weight="fill" className="text-red-600"/> 라이브 댓글</span><button onClick={() => setShowKeywordOnly(!showKeywordOnly)} className={`flex items-center justify-center w-6 h-6 rounded-full transition-all ${showKeywordOnly ? 'bg-blue-600 text-white shadow-sm' : 'bg-white text-gray-400 border border-gray-200 hover:text-blue-500'}`}><Icon name="target" weight={showKeywordOnly ? "fill" : "bold"} size={14} /></button></div><span className="text-xs text-gray-500">{filteredChats.length}건</span></div>
+                            <div className="flex flex-col gap-2 bg-white p-2 rounded border border-indigo-100"><form onSubmit={handleAddKeyword} className="flex gap-1"><input type="text" value={keywordInput} onChange={(e) => setKeywordInput(e.target.value)} placeholder="키워드 추가" className="flex-1 text-xs border rounded px-2 py-1 outline-none" /><button type="submit" className="bg-blue-500 text-white px-2 py-1 rounded text-xs font-bold">추가</button></form>{keywords.size > 0 && <div className="flex flex-wrap gap-1 max-h-16 overflow-y-auto scrollbar-thin mt-1 p-1 bg-gray-50 border rounded">{[...keywords].map(k => <span key={k} onClick={() => handleRemoveKeyword(k)} className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-[10px] cursor-pointer hover:bg-red-100 hover:text-red-600 flex items-center gap-1 shrink-0">{k} <Icon name="x" weight="bold"/></span>)}</div>}</div>
                             <div className="relative"><Icon name="magnifying-glass" className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs"/><input type="text" placeholder="닉네임/내용 검색" value={chatSearch} onChange={e => setChatSearch(e.target.value)} className="w-full text-xs pl-7 pr-2 py-1.5 border rounded focus:ring-1 focus:ring-indigo-500 outline-none" />{chatSearch && <button onClick={()=>setChatSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"><Icon name="x-circle" weight="fill" size={12}/></button>}</div>
                         </div>
-                        {connectionStatus.code !== 'success' && connectionStatus.code !== 'loading' && <div className={`text-xs p-2 ${connectionStatus.code === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-600'}`}>{connectionStatus.msg}</div>}
-                        <div className="flex-1 overflow-y-auto p-2 space-y-1">
-                            {filteredChats.map(chat => {
-                                const isClicked = clickedChats?.has(chat.id) || false;
-                                const isKeywordMatch = [...keywords].some(k => chat.content.includes(k));
-                                return (<div key={chat.id} onClick={() => handleChatClick(chat)} className={`p-2 border rounded cursor-pointer transition-all flex flex-col gap-1 ${isClicked ? 'processed-chat' : 'bg-white hover:bg-indigo-50'} ${isKeywordMatch && !isClicked ? 'keyword-detected' : ''}`}><div className="flex justify-between text-xs mb-1"><span className={`font-bold ${isClicked ? 'text-gray-500' : 'text-gray-700'}`}>{chat.nickname}</span><span className="text-gray-400">{chat.time ? new Date(chat.time).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}) : ''}</span></div><div className="text-sm">{chat.content}</div>{isKeywordMatch && !isClicked && (<div className="flex justify-between items-center mt-1"><span className="keyword-badge flex items-center gap-1"><Icon name="target" weight="fill"/> 키워드됨</span></div>)}</div>);
-                            })}
-                        </div>
+                        {connectionStatus.code !== 'success' && connectionStatus.code !== 'loading' && <div className="bg-red-50 text-red-600 text-xs p-2">{connectionStatus.msg}</div>}
+                        <div className="flex-1 overflow-y-auto p-2 space-y-1">{filteredChats.map(chat => { const isClicked = clickedChats?.has(chat.id) || false; const isKeywordMatch = [...keywords].some(k => chat.content.includes(k)); return (<div key={chat.id} onClick={() => handleChatClick(chat)} className={`p-2 border rounded cursor-pointer transition-all flex flex-col gap-1 ${isClicked ? 'processed-chat' : 'bg-white hover:bg-indigo-50'} ${isKeywordMatch && !isClicked ? 'keyword-detected' : ''}`}><div className="flex justify-between text-xs mb-1"><span className={`font-bold ${isClicked ? 'text-gray-500' : 'text-gray-700'}`}>{chat.nickname}</span><span className="text-gray-400">{chat.time ? new Date(chat.time).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}) : ''}</span></div><div className="text-sm">{chat.content}</div>{isKeywordMatch && !isClicked && (<div className="flex justify-between items-center mt-1"><span className="keyword-badge flex items-center gap-1"><Icon name="target" weight="fill"/> 키워드됨</span></div>)}</div>); })}</div>
                     </div>
                     <div className="w-[20%] flex flex-col bg-white border rounded-lg shadow-sm overflow-hidden">
-                        <div className="p-2 bg-yellow-50 border-b flex flex-col gap-2">
-                            <div className="font-bold text-yellow-700 flex items-center justify-between"><span className="flex items-center gap-1"><Icon name="money" weight="fill"/> 입금 내역</span><span className="text-xs text-gray-500">{filteredDeposits.length}건</span></div>
-                            <form onSubmit={handleAddManualDeposit} className="flex flex-col gap-1 bg-white p-1 rounded border border-yellow-200"><div className="flex gap-1"><input type="text" value={newDepositName} onChange={(e)=>setNewDepositName(e.target.value)} placeholder="입금자명" className="w-[60%] text-xs border rounded px-1 py-1" /><input type="number" value={newDepositAmount} onChange={(e)=>setNewDepositAmount(e.target.value)} placeholder="금액" className="w-[40%] text-xs border rounded px-1 py-1" /></div><button type="submit" className="bg-yellow-500 text-white text-xs font-bold py-1 rounded hover:bg-yellow-600">수동 입금 추가</button></form>
-                            <div className="relative"><Icon name="magnifying-glass" className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"/><input type="text" placeholder="입금자/금액 검색" value={depositSearch} onChange={e => setDepositSearch(e.target.value)} className="w-full text-xs pl-7 pr-2 py-1.5 border rounded focus:ring-1 focus:ring-yellow-500 outline-none" />{depositSearch && <button onClick={()=>setDepositSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"><Icon name="x-circle" weight="fill" size={12}/></button>}</div>
-                            {selectedNick && <div className="text-[11px] text-blue-600 bg-blue-50 p-1 rounded text-center animate-pulse">👇 '{selectedNick}'님 매칭</div>}
-                        </div>
-                        <div className="flex-1 overflow-y-auto p-2 space-y-1 bg-yellow-50/30">
-                            {filteredDeposits.map((d, i) => {
-                                const isUsed = matchedDeposits?.has(d.id) || false;
-                                const isSuggested = selectedNick && d.name.includes(selectedNick.replace(/ /g,''));
-                                const isManual = d.source === 'manual';
-                                return (<div key={d.id} onClick={() => handleDepositClick(d)} className={`relative flex justify-between p-2 border rounded cursor-pointer transition-all group ${isUsed ? 'opacity-40 bg-gray-100 line-through' : ''} ${isSuggested && !isUsed ? 'bg-yellow-100 border-yellow-400 ring-2 ring-yellow-400' : 'bg-white hover:bg-yellow-100'}`}><span className="text-gray-700 text-sm flex items-center gap-1">{d.name} {isManual && <span className="text-[9px] text-gray-400 bg-gray-100 px-1 rounded">수동</span>}</span><span className="font-mono text-blue-600 font-bold text-sm">+{Number(d.amount).toLocaleString()}</span>{isManual && !isUsed && <button onClick={(e)=>{e.stopPropagation(); handleDeleteManualDeposit(d.id)}} className="absolute -right-1 -top-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"><Icon name="x" size={10} weight="bold"/></button>}</div>);
-                            })}
-                        </div>
+                        <div className="p-2 bg-yellow-50 border-b flex flex-col gap-2"><div className="font-bold text-yellow-700 flex items-center justify-between"><span className="flex items-center gap-1"><Icon name="money" weight="fill"/> 입금 내역</span><span className="text-xs text-gray-500">{filteredDeposits.length}건</span></div><form onSubmit={handleAddManualDeposit} className="flex flex-col gap-1 bg-white p-1 rounded border border-yellow-200"><div className="flex gap-1"><input type="text" value={newDepositName} onChange={(e)=>setNewDepositName(e.target.value)} placeholder="입금자명" className="w-[60%] text-xs border rounded px-1 py-1" /><input type="number" value={newDepositAmount} onChange={(e)=>setNewDepositAmount(e.target.value)} placeholder="금액" className="w-[40%] text-xs border rounded px-1 py-1" /></div><button type="submit" className="bg-yellow-500 text-white text-xs font-bold py-1 rounded hover:bg-yellow-600">수동 입금 추가</button></form><div className="relative"><Icon name="magnifying-glass" className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"/><input type="text" placeholder="입금자/금액 검색" value={depositSearch} onChange={e => setDepositSearch(e.target.value)} className="w-full text-xs pl-7 pr-2 py-1.5 border rounded focus:ring-1 focus:ring-yellow-500 outline-none" />{depositSearch && <button onClick={()=>setDepositSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"><Icon name="x-circle" weight="fill" size={12}/></button>}</div>{selectedNick && <div className="text-[11px] text-blue-600 bg-blue-50 p-1 rounded text-center animate-pulse">👇 '{selectedNick}'님 매칭</div>}</div>
+                        <div className="flex-1 overflow-y-auto p-2 space-y-1 bg-yellow-50/30">{filteredDeposits.map((d, i) => { const isUsed = matchedDeposits?.has(d.id) || false; const isSuggested = selectedNick && d.name.includes(selectedNick.replace(/ /g,'')); const isManual = d.source === 'manual'; return (<div key={d.id} onClick={() => handleDepositClick(d)} className={`relative flex justify-between p-2 border rounded cursor-pointer transition-all group ${isUsed ? 'opacity-40 bg-gray-100 line-through' : ''} ${isSuggested && !isUsed ? 'bg-yellow-100 border-yellow-400 ring-2 ring-yellow-400' : 'bg-white hover:bg-yellow-100'}`}><span className="text-gray-700 text-sm flex items-center gap-1">{d.name} {isManual && <span className="text-[9px] text-gray-400 bg-gray-100 px-1 rounded">수동</span>}</span><span className="font-mono text-blue-600 font-bold text-sm">+{Number(d.amount).toLocaleString()}</span>{isManual && !isUsed && <button onClick={(e)=>{e.stopPropagation(); handleDeleteManualDeposit(d.id)}} className="absolute -right-1 -top-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"><Icon name="x" size={10} weight="bold"/></button>}</div>); })}</div>
                         <div className="p-2 bg-yellow-100 text-center font-bold text-yellow-800 text-xs border-t border-yellow-200">총 입금: {totalDepositAmount.toLocaleString()}원</div>
                     </div>
                     <div className="w-[50%] bg-gray-100 border rounded-lg flex flex-col overflow-hidden">
-                        <div className="grid grid-cols-4 gap-2 p-2 bg-indigo-50 border-b border-indigo-100 text-center text-xs">
-                            <div onClick={()=>setFilterStatus('all')} className={`bg-white p-1 rounded shadow-sm cursor-pointer border-2 transition-all ${filterStatus==='all' ? 'border-indigo-500' : 'border-transparent hover:border-indigo-200'}`}><div className="text-gray-400">총 매출</div><div className="font-bold text-indigo-700">{dashboardStats.totalSales.toLocaleString()}</div></div>
-                            <div onClick={()=>setFilterStatus('paid')} className={`bg-white p-1 rounded shadow-sm cursor-pointer border-2 transition-all ${filterStatus==='paid' ? 'border-green-500' : 'border-transparent hover:border-green-200'}`}><div className="text-gray-400">입금액</div><div className="font-bold text-green-600">{dashboardStats.totalDeposit.toLocaleString()}</div></div>
-                            <div onClick={()=>setFilterStatus('unpaid')} className={`bg-white p-1 rounded shadow-sm cursor-pointer border-2 transition-all ${filterStatus==='unpaid' ? 'border-red-500' : 'border-transparent hover:border-red-200'}`}><div className="text-gray-400">미수금</div><div className="font-bold text-red-500">{dashboardStats.totalUnpaid.toLocaleString()}</div></div>
-                            <div onClick={()=>setFilterStatus('paid')} className={`bg-white p-1 rounded shadow-sm ring-1 ring-purple-100 cursor-pointer border-2 transition-all ${filterStatus==='paid' ? 'border-purple-500' : 'border-transparent hover:border-purple-200'}`}><div className="text-gray-400">카드예정</div><div className="font-bold text-purple-600">{dashboardStats.totalCardExpected.toLocaleString()}</div></div>
-                        </div>
+                        <div className="grid grid-cols-4 gap-2 p-2 bg-indigo-50 border-b border-indigo-100 text-center text-xs"><div onClick={()=>setFilterStatus('all')} className={`bg-white p-1 rounded shadow-sm cursor-pointer border-2 transition-all ${filterStatus==='all' ? 'border-indigo-500' : 'border-transparent hover:border-indigo-200'}`}><div className="text-gray-400">총 매출</div><div className="font-bold text-indigo-700">{dashboardStats.totalSales.toLocaleString()}</div></div><div onClick={()=>setFilterStatus('paid')} className={`bg-white p-1 rounded shadow-sm cursor-pointer border-2 transition-all ${filterStatus==='paid' ? 'border-green-500' : 'border-transparent hover:border-green-200'}`}><div className="text-gray-400">입금액</div><div className="font-bold text-green-600">{dashboardStats.totalDeposit.toLocaleString()}</div></div><div onClick={()=>setFilterStatus('unpaid')} className={`bg-white p-1 rounded shadow-sm cursor-pointer border-2 transition-all ${filterStatus==='unpaid' ? 'border-red-500' : 'border-transparent hover:border-red-200'}`}><div className="text-gray-400">미수금</div><div className="font-bold text-red-500">{dashboardStats.totalUnpaid.toLocaleString()}</div></div><div onClick={()=>setFilterStatus('paid')} className={`bg-white p-1 rounded shadow-sm ring-1 ring-purple-100 cursor-pointer border-2 transition-all ${filterStatus==='paid' ? 'border-purple-500' : 'border-transparent hover:border-purple-200'}`}><div className="text-gray-400">카드예정</div><div className="font-bold text-purple-600">{dashboardStats.totalCardExpected.toLocaleString()}</div></div></div>
                         <div className="p-2 bg-white border-b font-bold text-indigo-700 shadow-sm flex flex-col gap-2">
-                            <div className="flex justify-between items-center"><span className="text-sm">📦 주문서 ({filteredGroupedOrders.length}명) ({totalItemsCount}건)</span><div className="flex items-center gap-2"><button onClick={handleLoadOrders} className="bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold flex items-center gap-1 shadow-sm" title="서버에서 불러오기"><Icon name="cloud-arrow-down" weight="fill"/> 불러오기</button><button onClick={resetAllStatus} className="bg-rose-500 text-white px-2 py-1 rounded text-xs font-bold hover:bg-rose-600 flex items-center gap-1" title="초기화"><Icon name="trash" weight="fill"/> 초기화</button><div className={`px-2 py-1 rounded text-xs font-bold flex items-center gap-1 ${isSaving ? 'bg-indigo-100 text-indigo-700' : 'bg-green-100 text-green-700'}`}>{isSaving ? <Icon name="spinner" className="animate-spin" /> : <Icon name="cloud-check" weight="fill" />} {isSaving ? "저장중" : "자동저장"}</div></div></div>
+                            <div className="flex justify-between items-center"><span className="text-sm">📦 주문서 ({filteredGroupedOrders.length}명) ({totalItemsCount}건)</span><div className="flex items-center gap-2"><button onClick={resetAllStatus} className="bg-rose-500 text-white px-2 py-1 rounded text-xs font-bold hover:bg-rose-600 flex items-center gap-1" title="초기화"><Icon name="trash" weight="fill"/> 초기화</button><div className={`px-2 py-1 rounded text-xs font-bold flex items-center gap-1 ${isSaving ? 'bg-indigo-100 text-indigo-700' : 'bg-green-100 text-green-700'}`}>{isSaving ? <Icon name="spinner" className="animate-spin" /> : <Icon name="cloud-check" weight="fill" />} {isSaving ? "저장중" : "자동저장"}</div></div></div>
                             <div className="flex gap-2 items-center"><div className="flex-1 flex gap-1 items-center bg-indigo-50 p-1 rounded border border-indigo-100"><span className="text-xs font-bold text-indigo-600 whitespace-nowrap pl-1">🖐️</span><form onSubmit={handleManualSubmit} className="flex gap-1 w-full"><input type="text" placeholder="닉네임" value={manualNick} onChange={e => setManualNick(e.target.value)} className="w-20 border rounded px-2 py-1 text-xs outline-none" /><input type="text" list="product-list" placeholder="상품명" value={manualProduct} onChange={e => setManualProduct(e.target.value)} className="flex-1 border rounded px-2 py-1 text-xs outline-none" /><button type="submit" className="bg-indigo-600 text-white px-2 py-1 rounded text-xs font-bold hover:bg-indigo-700">＋</button></form></div><div className="w-32 relative"><Icon name="magnifying-glass" className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs"/><input type="text" placeholder="검색..." value={orderSearch} onChange={(e) => setOrderSearch(e.target.value)} className="w-full pl-6 pr-2 py-1 border rounded text-xs outline-none" />{orderSearch && <button onClick={()=>setOrderSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"><Icon name="x-circle" weight="fill" size={10}/></button>}</div></div>
                         </div>
                         <div className="flex-1 overflow-y-auto p-2 space-y-2">
@@ -473,118 +285,16 @@
                                 const isCard = cardPayments[nick]; 
                                 const hasZeroPrice = activeItems.some(i => Number(i.price) === 0);
                                 const isEditingShipping = editingShippingNick === nick;
-                                
                                 const isPaidState = (balance <= 0 && grandTotal > 0 && !hasZeroPrice);
-
                                 let statusBadge;
                                 if (isCard) statusBadge = <span className="bg-purple-100 text-purple-600 px-1.5 rounded text-[10px] font-bold border border-purple-200">💳 카드</span>;
                                 else if (depositTotal === 0) statusBadge = <span className="bg-red-100 text-red-600 px-1.5 rounded text-[10px] font-bold">미입금</span>;
                                 else if (isPaidState) statusBadge = <span className="bg-green-100 text-green-700 px-1.5 rounded text-[10px] font-bold">✅ 완납</span>;
                                 else statusBadge = <span className="bg-orange-100 text-orange-600 px-1.5 rounded text-[10px] font-bold badge-pulse">🔺 {Math.abs(balance).toLocaleString()}원</span>;
-                                
                                 const addr = findAddress(nick);
                                 const isCopied = copyStatus[nick]; 
                                 const depositorName = depositorNames[nick];
-
-                                return (
-                                    <div key={nick} onClick={() => setSelectedNick(prev => prev === nick ? null : nick)} className={`bg-white rounded border shadow-sm transition-all overflow-hidden cursor-pointer ${isSelected ? 'ring-2 ring-indigo-500 shadow-md' : 'hover:border-indigo-300'}`}>
-                                        <div className={`px-2 py-1.5 flex justify-between items-center ${isSelected ? 'bg-indigo-50' : 'bg-gray-50'} border-b border-gray-100`}>
-                                            <div className="flex flex-col gap-0.5">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="font-bold text-sm text-gray-800">{nick}</span>
-                                                    <button onClick={(e) => { e.stopPropagation(); addOrderLogic(nick, '', 1); }} className="bg-indigo-100 text-indigo-700 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold hover:bg-indigo-200" title="빈 상품줄 추가">+</button>
-                                                    <button onClick={(e)=>{e.stopPropagation(); handleNicknameEdit(nick);}} className="text-gray-300 hover:text-indigo-600"><Icon name="pencil-simple" weight="bold" size={12}/></button>
-                                                    <button onClick={(e) => { e.stopPropagation(); toggleCardPayment(nick); }} className={`ml-1 text-[10px] px-1.5 py-0.5 rounded border transition-colors ${isCard ? 'bg-purple-100 border-purple-300 text-purple-700 font-bold' : 'bg-white text-gray-400 hover:bg-gray-100'}`}>카드</button>
-                                                    
-                                                    {/* 배송비 수정 */}
-                                                    <div onClick={(e) => e.stopPropagation()} className="ml-1">{isEditingShipping ? (<div className="flex items-center gap-1 bg-white border border-indigo-300 rounded px-1 py-0.5 shadow-sm"><Icon name="truck" className="text-indigo-600 text-[10px]"/><input type="number" value={currentShipping} onChange={(e) => handleShippingChange(nick, e.target.value)} onBlur={() => setEditingShippingNick(null)} onKeyDown={(e) => { if(e.key === 'Enter') setEditingShippingNick(null); }} autoFocus className="w-12 text-[10px] outline-none font-mono text-right text-indigo-600 font-bold bg-transparent"/></div>) : (<div onClick={() => setEditingShippingNick(nick)} className="cursor-pointer flex items-center gap-1 text-[10px] text-gray-500 bg-white px-1.5 py-0.5 rounded border hover:bg-indigo-50 hover:text-indigo-600 transition-colors" title="클릭하여 배송비 수정"><Icon name="truck" weight="fill"/> <span>{currentShipping.toLocaleString()}</span></div>)}</div>
-                                                    
-                                                    {/* 입금자명 입력 */}
-                                                    <div onClick={(e) => { e.stopPropagation(); openModal(`'${nick}'님의 입금자명(실명)을 입력하세요.`, 'prompt', (newName) => { if(newName !== null) setDepositorNames(prev => ({...prev, [nick]: newName})); }, null, depositorName || ''); }} className={`cursor-pointer flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border hover:bg-indigo-50 transition-colors ml-1 ${depositorName ? 'bg-indigo-50 text-indigo-600 border-indigo-200' : 'bg-white text-gray-400'}`} title="실명 입금자 등록"><Icon name="user" weight={depositorName ? "fill" : "regular"}/> <span>{depositorName || '입금자'}</span></div>
-
-                                                    {/* ✅ 완납/미납 토글 버튼 */}
-                                                    <div onClick={(e) => { e.stopPropagation(); handleFullDepositToggle(nick, grandTotal, depositTotal); }} 
-                                                         className={`cursor-pointer ml-1 flex items-center gap-1 px-1.5 py-0.5 rounded border transition-colors ${isPaidState ? 'bg-green-100 text-green-700 border-green-300' : 'bg-gray-100 text-gray-400 border-gray-200'}`}
-                                                         title={isPaidState ? "입금 완료됨 (클릭시 취소)" : "클릭시 전액 입금 처리"}>
-                                                        <Icon name={isPaidState ? "toggle-right" : "toggle-left"} weight="fill" size={16} />
-                                                        <span className="text-[10px] font-bold">{isPaidState ? "완납" : "미납"}</span>
-                                                    </div>
-                                                </div>
-
-                                                <div className="flex items-start gap-1 text-xs">{addr ? (<span className="text-green-600 text-[10px] flex items-center gap-1"><Icon name="house-line" weight="fill"/> {addr.realname} ({addr.phone})</span>) : (<span className="text-red-300 text-[10px] flex items-center gap-1"><Icon name="warning-circle" weight="fill"/> 주소없음</span>)}</div>
-                                            </div>
-                                            <div className="flex flex-col gap-1 items-end"><div className="flex items-center gap-2"><span className="font-bold text-sm font-mono text-gray-800">{grandTotal.toLocaleString()}원</span>{statusBadge}</div><button onClick={(e) => { e.stopPropagation(); copyOrderSheet(nick, items, grandTotal, depositTotal, balance, isCard); }} className={`px-1.5 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 shadow-sm transition-all ${isCopied ? 'bg-green-500 text-white copy-anim' : 'bg-yellow-300 hover:bg-yellow-400 text-black'}`}>{isCopied ? <Icon name="check" weight="bold"/> : <Icon name="chat-circle-dots" weight="fill"/>} 카톡</button></div>
-                                        </div>
-                                        <div className="p-1 space-y-1">
-                                            {items.map((item, idx) => {
-                                                const isZeroPrice = Number(item.price) === 0;
-                                                return (
-                                                    <div key={idx} className={`flex justify-between items-center text-xs p-1 rounded group transition-colors ${item.isCancelled ? 'bg-red-50/80 border border-red-100' : 'hover:bg-gray-50'}`}>
-                                                        <div className="flex-1 flex gap-1 items-center">
-                                                            {/* ✅ 취소 상태 표시 강화 */}
-                                                            {item.isCancelled && <span className="text-[9px] text-red-500 font-bold shrink-0">[취소]</span>}
-                                                            <input 
-                                                                type="text" 
-                                                                list="product-list" 
-                                                                value={item.product} 
-                                                                onChange={(e) => handleProductChange(item.id, 'product', e.target.value)} 
-                                                                onClick={(e) => e.stopPropagation()} 
-                                                                className={`w-full bg-transparent outline-none px-1 rounded ${item.isCancelled ? 'text-gray-400 line-through' : 'focus:bg-white focus:ring-1 focus:ring-indigo-100'}`} 
-                                                                placeholder="상품명" 
-                                                                disabled={item.isCancelled} 
-                                                            />
-                                                        </div>
-                                                        <div className="flex items-center gap-1 pl-1">
-                                                            <span className={`font-bold px-1 rounded text-[10px] shrink-0 ${item.isCancelled ? 'text-gray-400' : 'text-indigo-600 bg-indigo-50'}`}>
-                                                                {/* ✅ 수량 더블클릭 수정 부분 */}
-                                                                {editingQuantityId === item.id ? (
-                                                                    <input 
-                                                                        type="number" 
-                                                                        defaultValue={item.quantity}
-                                                                        autoFocus
-                                                                        className="w-8 text-center text-[10px] font-bold text-indigo-600 bg-white border border-indigo-300 rounded outline-none"
-                                                                        onBlur={(e) => handleQuantityUpdate(item.id, e.target.value)}
-                                                                        onKeyDown={(e) => {
-                                                                            if (e.key === 'Enter') handleQuantityUpdate(item.id, e.currentTarget.value);
-                                                                        }}
-                                                                        onClick={(e) => e.stopPropagation()}
-                                                                    />
-                                                                ) : (
-                                                                    <span 
-                                                                        onDoubleClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            if (!item.isCancelled) setEditingQuantityId(item.id);
-                                                                        }}
-                                                                        className={`cursor-pointer hover:bg-indigo-100 ${item.isCancelled ? 'cursor-not-allowed hover:bg-transparent line-through' : ''}`}
-                                                                        title={!item.isCancelled ? "더블클릭하여 수량 수정" : ""}
-                                                                    >
-                                                                        {item.quantity}개
-                                                                    </span>
-                                                                )}
-                                                            </span>
-
-                                                            <input 
-                                                                type="number" 
-                                                                value={item.price} 
-                                                                onChange={(e) => handleProductChange(item.id, 'price', e.target.value)} 
-                                                                onClick={(e) => e.stopPropagation()} 
-                                                                className={`w-14 text-right font-mono bg-transparent outline-none ${item.isCancelled ? 'line-through text-gray-400' : 'text-gray-500 focus:text-indigo-600'} ${isZeroPrice && !item.isCancelled ? 'bg-red-50 border-b border-red-300' : ''}`} 
-                                                                disabled={item.isCancelled} 
-                                                            />
-                                                            <div className="flex gap-0.5 w-8 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                <button onClick={(e)=>{e.stopPropagation(); handleOrderCancel(item.id);}} className="text-gray-300 hover:text-red-500"><Icon name={item.isCancelled ? "arrow-u-up-left" : "prohibit"} weight="bold"/></button>
-                                                                <button onClick={(e)=>{e.stopPropagation(); handleOrderDelete(item.id);}} className="text-gray-300 hover:text-red-500"><Icon name="trash" weight="bold"/></button>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                            
-                                            {depositTotal > 0 && (<div className="mt-1 pt-1 border-t border-dashed flex justify-between text-[11px] text-green-600 font-bold px-2"><span>└ 입금확인</span><div className="flex items-center gap-1"><span>{depositTotal.toLocaleString()}원</span><button onClick={(e) => { e.stopPropagation(); resetUserDeposit(nick); }} className="text-gray-400 hover:text-red-500 p-0.5 rounded" title="입금액 0원으로 초기화"><Icon name="arrow-counter-clockwise" weight="bold"/></button></div></div>)}
-                                            {isCard && balance > 0 && (<div className="mt-1 pt-1 border-t border-dashed bg-purple-50 p-1 rounded text-[11px] text-right text-gray-600"><div>미수금 {Math.abs(balance).toLocaleString()}원 + 10%</div><div className="font-bold text-purple-700">💳 결제: {(Math.abs(balance) * 1.1).toLocaleString()}원</div></div>)}
-                                        </div>
-                                    </div>
-                                );
+                                return (<div key={nick} onClick={() => setSelectedNick(prev => prev === nick ? null : nick)} className={`bg-white rounded border shadow-sm transition-all overflow-hidden cursor-pointer ${isSelected ? 'ring-2 ring-indigo-500 shadow-md' : 'hover:border-indigo-300'}`}><div className={`px-2 py-1.5 flex justify-between items-center ${isSelected ? 'bg-indigo-50' : 'bg-gray-50'} border-b border-gray-100`}><div className="flex flex-col gap-0.5"><div className="flex items-center gap-2"><span className="font-bold text-sm text-gray-800">{nick}</span><button onClick={(e) => { e.stopPropagation(); addOrderLogic(nick, '', 1); }} className="bg-indigo-100 text-indigo-700 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold hover:bg-indigo-200" title="빈 상품줄 추가">+</button><button onClick={(e)=>{e.stopPropagation(); handleNicknameEdit(nick);}} className="text-gray-300 hover:text-indigo-600"><Icon name="pencil-simple" weight="bold" size={12}/></button><button onClick={(e) => { e.stopPropagation(); toggleCardPayment(nick); }} className={`ml-1 text-[10px] px-1.5 py-0.5 rounded border transition-colors ${isCard ? 'bg-purple-100 border-purple-300 text-purple-700 font-bold' : 'bg-white text-gray-400 hover:bg-gray-100'}`}>카드</button><div onClick={(e) => e.stopPropagation()} className="ml-1">{isEditingShipping ? (<div className="flex items-center gap-1 bg-white border border-indigo-300 rounded px-1 py-0.5 shadow-sm"><Icon name="truck" className="text-indigo-600 text-[10px]"/><input type="number" value={currentShipping} onChange={(e) => handleShippingChange(nick, e.target.value)} onBlur={() => setEditingShippingNick(null)} onKeyDown={(e) => { if(e.key === 'Enter') setEditingShippingNick(null); }} autoFocus className="w-12 text-[10px] outline-none font-mono text-right text-indigo-600 font-bold bg-transparent"/></div>) : (<div onClick={() => setEditingShippingNick(nick)} className="cursor-pointer flex items-center gap-1 text-[10px] text-gray-500 bg-white px-1.5 py-0.5 rounded border hover:bg-indigo-50 hover:text-indigo-600 transition-colors" title="클릭하여 배송비 수정"><Icon name="truck" weight="fill"/> <span>{currentShipping.toLocaleString()}</span></div>)}</div><div onClick={(e) => { e.stopPropagation(); openModal(`'${nick}'님의 입금자명(실명)을 입력하세요.`, 'prompt', (newName) => { if(newName !== null) setDepositorNames(prev => ({...prev, [nick]: newName})); }, null, depositorName || ''); }} className={`cursor-pointer flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border hover:bg-indigo-50 transition-colors ml-1 ${depositorName ? 'bg-indigo-50 text-indigo-600 border-indigo-200' : 'bg-white text-gray-400'}`} title="실명 입금자 등록"><Icon name="user" weight={depositorName ? "fill" : "regular"}/> <span>{depositorName || '입금자'}</span></div><div onClick={(e) => { e.stopPropagation(); handleFullDepositToggle(nick, grandTotal, depositTotal); }} className={`cursor-pointer ml-1 flex items-center gap-1 px-1.5 py-0.5 rounded border transition-colors ${isPaidState ? 'bg-green-100 text-green-700 border-green-300' : 'bg-gray-100 text-gray-400 border-gray-200'}`} title={isPaidState ? "입금 완료됨 (클릭시 취소)" : "클릭시 전액 입금 처리"}><Icon name={isPaidState ? "toggle-right" : "toggle-left"} weight="fill" size={16} /><span className="text-[10px] font-bold">{isPaidState ? "완납" : "미납"}</span></div></div><div className="flex items-start gap-1 text-xs">{addr ? (<span className="text-green-600 text-[10px] flex items-center gap-1"><Icon name="house-line" weight="fill"/> {addr.realname} ({addr.phone})</span>) : (<span className="text-red-300 text-[10px] flex items-center gap-1"><Icon name="warning-circle" weight="fill"/> 주소없음</span>)}</div></div><div className="flex flex-col gap-1 items-end"><div className="flex items-center gap-2"><span className="font-bold text-sm font-mono text-gray-800">{grandTotal.toLocaleString()}원</span>{statusBadge}</div><button onClick={(e) => { e.stopPropagation(); copyOrderSheet(nick, items, grandTotal, depositTotal, balance, isCard); }} className={`px-1.5 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 shadow-sm transition-all ${isCopied ? 'bg-green-500 text-white copy-anim' : 'bg-yellow-300 hover:bg-yellow-400 text-black'}`}>{isCopied ? <Icon name="check" weight="bold"/> : <Icon name="chat-circle-dots" weight="fill"/>} 카톡</button></div></div><div className="p-1 space-y-1">{items.map((item, idx) => { const isZeroPrice = Number(item.price) === 0; return (<div key={idx} className={`flex justify-between items-center text-xs p-1 rounded group transition-colors ${item.isCancelled ? 'bg-red-50/80 border border-red-100' : 'hover:bg-gray-50'}`}><div className="flex-1 flex gap-1 items-center">{item.isCancelled && <span className="text-[9px] text-red-500 font-bold shrink-0">[취소]</span>}<input type="text" list="product-list" value={item.product} onChange={(e) => handleProductChange(item.id, 'product', e.target.value)} onClick={(e) => e.stopPropagation()} className={`w-full bg-transparent outline-none px-1 rounded ${item.isCancelled ? 'text-gray-400 line-through' : 'focus:bg-white focus:ring-1 focus:ring-indigo-100'}`} placeholder="상품명" disabled={item.isCancelled} /></div><div className="flex items-center gap-1 pl-1"><span className={`font-bold px-1 rounded text-[10px] shrink-0 ${item.isCancelled ? 'text-gray-400' : 'text-indigo-600 bg-indigo-50'}`}>{editingQuantityId === item.id ? (<input type="number" defaultValue={item.quantity} autoFocus className="w-8 text-center text-[10px] font-bold text-indigo-600 bg-white border border-indigo-300 rounded outline-none" onBlur={(e) => handleQuantityUpdate(item.id, e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handleQuantityUpdate(item.id, e.currentTarget.value); }} onClick={(e) => e.stopPropagation()} />) : (<span onDoubleClick={(e) => { e.stopPropagation(); if (!item.isCancelled) setEditingQuantityId(item.id); }} className={`cursor-pointer hover:bg-indigo-100 ${item.isCancelled ? 'cursor-not-allowed hover:bg-transparent line-through' : ''}`} title={!item.isCancelled ? "더블클릭하여 수량 수정" : ""}>{item.quantity}개</span>)}</span><input type="number" value={item.price} onChange={(e) => handleProductChange(item.id, 'price', e.target.value)} onClick={(e) => e.stopPropagation()} className={`w-14 text-right font-mono bg-transparent outline-none ${item.isCancelled ? 'line-through text-gray-400' : 'text-gray-500 focus:text-indigo-600'} ${isZeroPrice && !item.isCancelled ? 'bg-red-50 border-b border-red-300' : ''}`} disabled={item.isCancelled} /><div className="flex gap-0.5 w-8 justify-end opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={(e)=>{e.stopPropagation(); handleOrderCancel(item.id);}} className="text-gray-300 hover:text-red-500"><Icon name={item.isCancelled ? "arrow-u-up-left" : "prohibit"} weight="bold"/></button><button onClick={(e)=>{e.stopPropagation(); handleOrderDelete(item.id);}} className="text-gray-300 hover:text-red-500"><Icon name="trash" weight="bold"/></button></div></div></div>); })}{depositTotal > 0 && (<div className="mt-1 pt-1 border-t border-dashed flex justify-between text-[11px] text-green-600 font-bold px-2"><span>└ 입금확인</span><div className="flex items-center gap-1"><span>{depositTotal.toLocaleString()}원</span><button onClick={(e) => { e.stopPropagation(); resetUserDeposit(nick); }} className="text-gray-400 hover:text-red-500 p-0.5 rounded" title="입금액 0원으로 초기화"><Icon name="arrow-counter-clockwise" weight="bold"/></button></div></div>)}{isCard && balance > 0 && (<div className="mt-1 pt-1 border-t border-dashed bg-purple-50 p-1 rounded text-[11px] text-right text-gray-600"><div>미수금 {Math.abs(balance).toLocaleString()}원 + 10%</div><div className="font-bold text-purple-700">💳 결제: {(Math.abs(balance) * 1.1).toLocaleString()}원</div></div>)}</div></div>);
                             })}
                         </div>
                     </div>
@@ -637,21 +347,11 @@
                             const cloudAddrs = data.addresses.map(addr => {
                                 let phone = String(addr.phone || '').trim().replace(/[^0-9]/g, '');
                                 let zipcode = String(addr.zipcode || '').trim();
-
-                                if (phone.length > 0 && !phone.startsWith('0')) {
-                                    phone = '0' + phone;
-                                }
-                                if (phone.length === 11) {
-                                    phone = phone.replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3');
-                                }
-
-                                if (zipcode.length > 0 && zipcode.length < 5) {
-                                    zipcode = zipcode.padStart(5, '0');
-                                }
-                                
+                                if (phone.length > 0 && !phone.startsWith('0')) phone = '0' + phone;
+                                if (phone.length === 11) phone = phone.replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3');
+                                if (zipcode.length > 0 && zipcode.length < 5) zipcode = zipcode.padStart(5, '0');
                                 return { ...addr, phone: phone, zipcode: zipcode };
                             });
-
                             setAddresses(prev => {
                                 const map = new Map(prev.map(item => [item.nickname, item]));
                                 cloudAddrs.forEach(item => map.set(item.nickname, item)); 
@@ -672,7 +372,6 @@
                     <div className="flex justify-between items-center mb-4 pb-4 border-b">
                         <h2 className="text-xl font-bold flex items-center gap-2"><Icon name="address-book" weight="fill" className="text-indigo-600"/> 고객 주소록 관리 <span className="text-sm font-normal text-gray-500">({addresses.length}명)</span></h2>
                         <div className="flex gap-2">
-                             {/* ID 표시 */}
                              {customerSheetId && <span className="text-[10px] text-gray-400 self-center mr-2">ID연동됨</span>}
                             <button onClick={handleCloudSave} className="bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded text-sm font-bold flex items-center gap-1 shadow-sm"><Icon name="cloud-arrow-up" weight="fill"/> 서버 저장</button>
                             <button onClick={handleCloudLoad} className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded text-sm font-bold flex items-center gap-1 shadow-sm"><Icon name="cloud-arrow-down" weight="fill"/> 서버 로드</button>
@@ -688,7 +387,6 @@
                                         <tr key={i} className={`hover:bg-gray-50 group ${isEditing ? 'bg-blue-50' : ''}`} onDoubleClick={() => !isEditing && startInlineEdit(addr)}>
                                             {isEditing ? (
                                                 <>
-                                                    {/* ✅ [수정] 닉네임 input 활성화 (disabled 제거) */}
                                                     <td className="p-2"><input type="text" value={inlineEditData.nickname} onChange={e=>setInlineEditData({...inlineEditData, nickname: e.target.value})} className="w-full border rounded px-1 py-0.5 focus:ring-2 ring-blue-400 outline-none" /></td>
                                                     <td className="p-2"><input type="text" value={inlineEditData.realname} onChange={e=>setInlineEditData({...inlineEditData, realname: e.target.value})} className="w-full border rounded px-1 py-0.5 focus:ring-2 ring-blue-400 outline-none" /></td>
                                                     <td className="p-2"><input type="text" value={inlineEditData.phone} onChange={e=>setInlineEditData({...inlineEditData, phone: e.target.value})} className="w-full border rounded px-1 py-0.5 focus:ring-2 ring-blue-400 outline-none" /></td>
@@ -741,7 +439,9 @@
             );
         };
 
-        const OrderManagementTab = ({ orders, shippingOverrides, quickShipping, addresses }) => {
+        const OrderManagementTab = ({ orders, shippingOverrides, quickShipping, addresses, handleExportBackup, handleImportBackup }) => {
+            const fileInputRef = useRef(null);
+            
             const handleExportProducts = () => { const summary = {}; orders.forEach(o => { if(o.isCancelled) return; const name = o.product || '(상품명 없음)'; if (!summary[name]) summary[name] = 0; summary[name] += Number(o.quantity); }); const data = Object.entries(summary).map(([product, qty]) => ({ '상품명': product, '총필요수량': qty })); downloadExcel(data, '상품별_발주리스트'); };
             const handleExportCustomers = () => { const groups = {}; orders.forEach(o => { if (!groups[o.customer]) groups[o.customer] = []; groups[o.customer].push(o); }); let excelRows = []; Object.entries(groups).forEach(([nick, items]) => { const activeItems = items.filter(i => !i.isCancelled); if(activeItems.length === 0) return; const addrInfo = addresses.find(a => a.nickname.trim() === nick.trim()) || {}; const fullAddress = addrInfo.zipcode ? `(${addrInfo.zipcode}) ${addrInfo.address || ''}` : (addrInfo.address || ''); const createRow = (productValue) => ({ '날짜시간': new Date().toLocaleString(), '공란1': '', '공란2': '', '닉네임': nick, '주문제품(수량)': productValue, '이름': addrInfo.realname || '', '핸드폰번호': addrInfo.phone || '', '주소': fullAddress, '배송메모': addrInfo.memo || '' }); excelRows.push(createRow(`[ ${nick} ]`)); activeItems.forEach(item => { const qtyPart = item.quantity > 1 ? ` ★ ${item.quantity}개` : ''; excelRows.push(createRow(`${item.product}${qtyPart}`)); }); }); downloadExcel(excelRows, '고객별_정산_배송리스트'); };
             
@@ -772,19 +472,41 @@
             };
 
             return (
-                <div className="flex flex-wrap items-center justify-center h-full p-10 gap-6 overflow-y-auto content-center">
-                    <div className="bg-white p-8 rounded-xl shadow-lg border text-center w-full max-w-sm">
-                        <div className="text-4xl mb-4">📦</div><h2 className="text-xl font-bold mb-2">발주용 품목 집계</h2><p className="text-gray-500 mb-6 text-sm">어떤 상품이 몇 개 필요한지 정리해드립니다.</p>
-                        <button onClick={handleExportProducts} className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2"><Icon name="file-xls" weight="fill" size={20}/> 엑셀 다운로드</button>
+                <div className="flex flex-col items-center justify-center h-full p-10 gap-6 overflow-y-auto content-center">
+                    
+                    {/* 상단: 백업 및 복구 섹션 (가장 중요) */}
+                    <div className="w-full max-w-4xl grid grid-cols-2 gap-4 mb-6">
+                         <div className="bg-indigo-50 p-6 rounded-xl border border-indigo-200 flex flex-col items-center justify-center gap-2">
+                            <h3 className="font-bold text-indigo-800 flex items-center gap-2"><Icon name="download-simple" weight="fill"/> 데이터 백업</h3>
+                            <p className="text-xs text-indigo-600 text-center mb-2">현재 작업 중인 모든 상태를<br/>파일(.json)로 저장합니다.</p>
+                            <button onClick={handleExportBackup} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-bold text-sm shadow-sm flex items-center gap-2">
+                                <Icon name="floppy-disk" weight="fill"/> 백업 파일 저장하기
+                            </button>
+                        </div>
+
+                        <div className="bg-rose-50 p-6 rounded-xl border border-rose-200 flex flex-col items-center justify-center gap-2">
+                            <h3 className="font-bold text-rose-800 flex items-center gap-2"><Icon name="upload-simple" weight="fill"/> 데이터 복구</h3>
+                            <p className="text-xs text-rose-600 text-center mb-2">저장해둔 파일을 불러와서<br/>이전 상태로 되돌립니다.</p>
+                            <input type="file" ref={fileInputRef} onChange={handleImportBackup} className="hidden" accept=".json" />
+                            <button onClick={() => fileInputRef.current.click()} className="bg-rose-500 hover:bg-rose-600 text-white px-4 py-2 rounded-lg font-bold text-sm shadow-sm flex items-center gap-2">
+                                <Icon name="folder-open" weight="fill"/> 백업 파일 불러오기
+                            </button>
+                        </div>
                     </div>
-                    <div className="bg-white p-8 rounded-xl shadow-lg border text-center w-full max-w-sm">
-                        <div className="text-4xl mb-4">👥</div><h2 className="text-xl font-bold mb-2">배송용 고객 리스트</h2><p className="text-gray-500 mb-6 text-sm">주소, 전화번호 포함된 배송 명단을 뽑습니다.</p>
-                        <button onClick={handleExportCustomers} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2"><Icon name="file-xls" weight="fill" size={20}/> 엑셀 다운로드</button>
-                    </div>
-                    {/* ✅ [추가] 전체 데이터 다운로드 버튼 */}
-                    <div className="bg-white p-8 rounded-xl shadow-lg border text-center w-full max-w-sm">
-                        <div className="text-4xl mb-4">📑</div><h2 className="text-xl font-bold mb-2">전체 주문 원본</h2><p className="text-gray-500 mb-6 text-sm">모든 주문 내역과 상세 정보를 저장합니다.</p>
-                        <button onClick={handleExportAllRawData} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2"><Icon name="file-csv" weight="fill" size={20}/> 엑셀 다운로드</button>
+
+                    <div className="grid grid-cols-3 gap-6 w-full max-w-5xl">
+                        <div className="bg-white p-6 rounded-xl shadow-lg border text-center">
+                            <div className="text-3xl mb-3">📦</div><h2 className="text-lg font-bold mb-2">발주용 품목 집계</h2><p className="text-gray-500 mb-4 text-xs">상품별 총 필요 수량 확인</p>
+                            <button onClick={handleExportProducts} className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 rounded-lg flex items-center justify-center gap-2 text-sm"><Icon name="file-xls" weight="fill" size={16}/> 엑셀 다운로드</button>
+                        </div>
+                        <div className="bg-white p-6 rounded-xl shadow-lg border text-center">
+                            <div className="text-3xl mb-3">👥</div><h2 className="text-lg font-bold mb-2">배송용 고객 리스트</h2><p className="text-gray-500 mb-4 text-xs">택배 발송용 주소록 양식</p>
+                            <button onClick={handleExportCustomers} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-lg flex items-center justify-center gap-2 text-sm"><Icon name="file-xls" weight="fill" size={16}/> 엑셀 다운로드</button>
+                        </div>
+                        <div className="bg-white p-6 rounded-xl shadow-lg border text-center">
+                            <div className="text-3xl mb-3">📑</div><h2 className="text-lg font-bold mb-2">전체 주문 상세</h2><p className="text-gray-500 mb-4 text-xs">모든 주문 내역 원본 저장</p>
+                            <button onClick={handleExportAllRawData} className="w-full bg-slate-600 hover:bg-slate-700 text-white font-bold py-2 rounded-lg flex items-center justify-center gap-2 text-sm"><Icon name="file-csv" weight="fill" size={16}/> 엑셀 다운로드</button>
+                        </div>
                     </div>
                 </div>
             );
@@ -803,25 +525,13 @@
             const [matchedDeposits, setMatchedDeposits] = useState(() => { const saved = localStorage.getItem('matchedDeposits'); return saved ? new Set(JSON.parse(saved)) : new Set(); });
             const [depositorNames, setDepositorNames] = useState(() => { try { return JSON.parse(localStorage.getItem('depositorNames')) || {}; } catch { return {}; } });
             const [clickedChats, setClickedChats] = useState(() => { const saved = localStorage.getItem('clickedChats'); return saved ? new Set(JSON.parse(saved)) : new Set(); });
-            
-            // ✅ [수정] 누락된 keywords 상태 정의 추가
-            const [keywords, setKeywords] = useState(() => { 
-                const saved = localStorage.getItem('keywords'); 
-                return saved ? new Set(JSON.parse(saved)) : new Set(); 
-            });
-
-            // ✅ [추가] 안내 멘트 발송 이력 저장
-            const [sentAddressRequests, setSentAddressRequests] = useState(() => { 
-                const saved = localStorage.getItem('sentAddressRequests'); 
-                return saved ? new Set(JSON.parse(saved)) : new Set(); 
-            });
-
+            const [keywords, setKeywords] = useState(() => { const saved = localStorage.getItem('keywords'); return saved ? new Set(JSON.parse(saved)) : new Set(); });
+            const [sentAddressRequests, setSentAddressRequests] = useState(() => { const saved = localStorage.getItem('sentAddressRequests'); return saved ? new Set(JSON.parse(saved)) : new Set(); });
 
             const [isSettingsOpen, setIsSettingsOpen] = useState(false); 
             const [googleScriptUrl, setGoogleScriptUrl] = useState(() => localStorage.getItem('googleScriptUrl') || DEFAULT_GOOGLE_SCRIPT_URL);
             const [customerSheetId, setCustomerSheetId] = useState(() => localStorage.getItem('customerSheetId') || DEFAULT_CUSTOMER_SHEET_ID);
 
-            // ✅ 모달 상태 관리
             const [modalConfig, setModalConfig] = useState({ isOpen: false, type: 'alert', message: '', onConfirm: null, initialValue: '' });
 
             const openModal = (message, type = 'alert', onConfirm = null, onCancel = null, initialValue = '') => {
@@ -841,6 +551,58 @@
                 });
             };
 
+            // ✅ 백업 파일 다운로드 함수
+            const handleExportBackup = () => {
+                const backupData = {
+                    date: new Date().toISOString(),
+                    orders,
+                    productHistory,
+                    shippingOverrides,
+                    cardPayments,
+                    matchedDeposits: [...matchedDeposits],
+                    clickedChats: [...clickedChats],
+                    sentAddressRequests: [...sentAddressRequests],
+                    depositorNames,
+                    keywords: [...keywords]
+                    // 주소록(addresses)과 CS데이터(csData)는 보통 별도로 관리되지만, 필요하다면 여기에 추가 가능
+                };
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData));
+                const downloadAnchorNode = document.createElement('a');
+                downloadAnchorNode.setAttribute("href", dataStr);
+                downloadAnchorNode.setAttribute("download", "kallo_backup_" + new Date().toISOString().slice(0,10) + ".json");
+                document.body.appendChild(downloadAnchorNode);
+                downloadAnchorNode.click();
+                downloadAnchorNode.remove();
+            };
+
+            // ✅ 백업 파일 불러오기 함수
+            const handleImportBackup = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        const data = JSON.parse(event.target.result);
+                        openModal("백업 데이터를 불러오시겠습니까?\n현재 작업 중인 내용은 덮어씌워집니다.", 'confirm', () => {
+                            if(data.orders) setOrders(data.orders);
+                            if(data.productHistory) setProductHistory(data.productHistory);
+                            if(data.shippingOverrides) setShippingOverrides(data.shippingOverrides);
+                            if(data.cardPayments) setCardPayments(data.cardPayments);
+                            if(data.matchedDeposits) setMatchedDeposits(new Set(data.matchedDeposits));
+                            if(data.clickedChats) setClickedChats(new Set(data.clickedChats));
+                            if(data.sentAddressRequests) setSentAddressRequests(new Set(data.sentAddressRequests));
+                            if(data.depositorNames) setDepositorNames(data.depositorNames);
+                            if(data.keywords) setKeywords(new Set(data.keywords));
+                            openModal("데이터 복구가 완료되었습니다!", 'alert');
+                        });
+                    } catch(err) {
+                        openModal("파일 읽기 실패: " + err, 'alert');
+                    }
+                };
+                reader.readAsText(file);
+                e.target.value = ''; // 같은 파일 다시 선택 가능하게 초기화
+            };
+
             useEffect(() => { localStorage.setItem('youtubeOrders', JSON.stringify(orders)); }, [orders]);
             useEffect(() => { localStorage.setItem('productHistory', JSON.stringify(productHistory)); }, [productHistory]);
             useEffect(() => { localStorage.setItem('bankAccount', bankAccount); }, [bankAccount]);
@@ -853,11 +615,8 @@
             useEffect(() => { localStorage.setItem('googleScriptUrl', googleScriptUrl); }, [googleScriptUrl]);
             useEffect(() => { localStorage.setItem('clickedChats', JSON.stringify([...clickedChats])); }, [clickedChats]);
             useEffect(() => { localStorage.setItem('customerSheetId', customerSheetId); }, [customerSheetId]);
-            // ✅ 키워드 저장
             useEffect(() => { localStorage.setItem('keywords', JSON.stringify([...keywords])); }, [keywords]);
-            // ✅ 안내 멘트 발송 이력 저장
             useEffect(() => { localStorage.setItem('sentAddressRequests', JSON.stringify([...sentAddressRequests])); }, [sentAddressRequests]);
-
 
             const tabs = [ { id: 'live', label: '라이브관제', icon: 'monitor-play' }, { id: 'customer', label: '고객관리', icon: 'address-book' }, { id: 'cs', label: 'CS관리', icon: 'headset' }, { id: 'manage', label: '주문관리(엑셀)', icon: 'file-xls' } ];
 
@@ -866,13 +625,13 @@
                     setOrders([]); setCardPayments({}); setShippingOverrides({}); setMatchedDeposits(new Set());
                     setProductHistory({}); 
                     setClickedChats(new Set()); 
-                    setSentAddressRequests(new Set()); // ✅ 안내 멘트 발송 이력 초기화
+                    setSentAddressRequests(new Set());
                     
                     localStorage.removeItem('youtubeOrders'); localStorage.removeItem('cardPayments'); 
                     localStorage.removeItem('shippingOverrides'); localStorage.removeItem('matchedDeposits');
                     localStorage.removeItem('productHistory'); 
                     localStorage.removeItem('clickedChats'); 
-                    localStorage.removeItem('sentAddressRequests'); // ✅ 로컬스토리지 삭제
+                    localStorage.removeItem('sentAddressRequests'); 
                     
                     openModal("작업 내역과 상품 목록이 초기화되었습니다.\n\n새로운 방송을 시작하려면 구글 시트의 기존 데이터도 삭제해주세요!", 'alert', () => window.location.reload());
                 });
@@ -888,7 +647,6 @@
                         </div>
                     </header>
                     
-                    {/* ✅ 모달 컴포넌트 렌더링 */}
                     <Modal 
                         isOpen={modalConfig.isOpen} 
                         type={modalConfig.type} 
@@ -901,41 +659,35 @@
                     {isSettingsOpen && (
                         <div className="absolute top-12 right-4 bg-white shadow-xl border rounded-lg p-4 w-80 z-50 animate-pop">
                             <h3 className="font-bold mb-4 flex items-center gap-2 border-b pb-2"><Icon name="gear" weight="fill" className="text-gray-500"/> 환경설정</h3>
-                            
                             <div className="mb-4">
                                 <label className="block text-xs font-bold text-indigo-600 mb-1">구글 앱스 스크립트 URL</label>
                                 <input type="text" value={googleScriptUrl} onChange={(e)=>setGoogleScriptUrl(e.target.value)} className="w-full border rounded px-2 py-1.5 text-xs text-gray-600 font-mono break-all" placeholder="https://script.google.com/..." />
                                 <p className="text-[10px] text-gray-400 mt-1">※ 배포 주소가 바뀌면 여기에 입력하세요.</p>
                             </div>
-
                             <div className="mb-4">
                                 <label className="block text-xs font-bold text-green-600 mb-1">고객 주소록 시트 ID (선택)</label>
                                 <input type="text" value={customerSheetId} onChange={(e)=>setCustomerSheetId(e.target.value)} className="w-full border rounded px-2 py-1.5 text-xs text-gray-600 font-mono" placeholder="1AbC-xYz..." />
                                 <p className="text-[10px] text-gray-400 mt-1">※ 별도 파일에 주소록을 저장하려면 ID 입력.<br/>(비워두면 기본 시트의 'Addresses' 탭 사용)</p>
                             </div>
-
                             <div className="mb-4">
                                 <button onClick={() => window.open(googleScriptUrl, '_blank')} className="w-full bg-blue-500 hover:bg-blue-600 text-white rounded py-2 text-xs font-bold mb-2 flex items-center justify-center gap-1">
                                     <Icon name="pulse" weight="bold"/> 서버 상태 확인하기 (새창)
                                 </button>
                                 <p className="text-[10px] text-gray-400 text-center">클릭 후 JSON 데이터가 보이면 정상입니다.</p>
                             </div>
-
                             <div className="mb-4">
                                 <label className="block text-xs font-bold text-gray-500 mb-1">기본 배송비 설정</label>
                                 <div className="flex items-center gap-2"><input type="number" value={quickShipping} onChange={(e)=>setQuickShipping(Number(e.target.value))} className="w-full border rounded px-2 py-1.5 text-sm" /><span className="text-sm text-gray-500">원</span></div>
                             </div>
-                            
                             <button onClick={()=>setIsSettingsOpen(false)} className="w-full bg-indigo-600 text-white rounded py-2 text-sm font-bold hover:bg-indigo-700">저장 및 닫기</button>
                         </div>
                     )}
                     <main className="flex-1 overflow-hidden bg-gray-100 p-2 relative">
-                        {/* ✅ keywords, setKeywords props 전달 */}
                         {activeTab === 'live' && (<LiveTab orders={orders} setOrders={setOrders} productHistory={productHistory} setProductHistory={setProductHistory} quickShipping={quickShipping} setQuickShipping={setQuickShipping} shippingOverrides={shippingOverrides} setShippingOverrides={setShippingOverrides} bankAccount={bankAccount} setBankAccount={setBankAccount} googleScriptUrl={googleScriptUrl} addresses={addresses} setAddresses={setAddresses} cardPayments={cardPayments} setCardPayments={setCardPayments} resetAllStatus={resetAllStatus} matchedDeposits={matchedDeposits} setMatchedDeposits={setMatchedDeposits} depositorNames={depositorNames} setDepositorNames={setDepositorNames} clickedChats={clickedChats} setClickedChats={setClickedChats} openModal={openModal} keywords={keywords} setKeywords={setKeywords} sentAddressRequests={sentAddressRequests} setSentAddressRequests={setSentAddressRequests} />)}
-                        {/* ✅ customerSheetId props 전달 */}
                         {activeTab === 'customer' && (<CustomerTab addresses={addresses} setAddresses={setAddresses} googleScriptUrl={googleScriptUrl} customerSheetId={customerSheetId} openModal={openModal} />)}
                         {activeTab === 'cs' && (<CSTab csData={csData} setCsData={setCsData} openModal={openModal} />)}
-                        {activeTab === 'manage' && (<OrderManagementTab orders={orders} shippingOverrides={shippingOverrides} quickShipping={quickShipping} addresses={addresses} />)}
+                        {/* ✅ handleExportBackup, handleImportBackup 전달 */}
+                        {activeTab === 'manage' && (<OrderManagementTab orders={orders} shippingOverrides={shippingOverrides} quickShipping={quickShipping} addresses={addresses} handleExportBackup={handleExportBackup} handleImportBackup={handleImportBackup} />)}
                     </main>
                 </div>
             );
