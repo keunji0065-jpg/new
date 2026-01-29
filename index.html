@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>깔로 주문서 PRO (오류수정완료)</title>
+    <title>깔로 주문서 PRO (최종연결)</title>
     
     <!-- 라이브러리 로드 -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin="anonymous"></script>
@@ -50,8 +50,9 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef, useCallback } = React;
 
-        const DEFAULT_GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzyIJYsEH9MNxwtbnkF31dKEjYb996KoFQja5UYVAV5ObEyuGUAMTxWdH3ql9nLM-gW8A/exec";
-        // ✅ [수정] 누락된 상수 정의 추가
+        // ✅ 최신 URL 적용 (사용자 제공)
+        const DEFAULT_GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby-RMXlBDqFMFFx-hqxmWBoQfsdrHyyNmCDUZwB6Caxfg4KrAil3_yUP0uAAhKyv1XB7A/exec";
+        
         const DEFAULT_CUSTOMER_SHEET_ID = "1zlL6R8iCy-6ZRMqj6dbefhkwSyRzHibDYBNJLmE35bM";
         const FIXED_BANK_ACCOUNT = "카카오뱅크 김선정\n7942 18 01611";
         const Icon = ({ name, className="", weight="regular", size }) => <i className={`ph ph-${name} ${className}`} data-phosphor-icon-weight={weight} style={{fontSize: size}}></i>;
@@ -123,7 +124,7 @@
             );
         };
 
-        const LiveTab = ({ orders, setOrders, productHistory, setProductHistory, quickShipping, setQuickShipping, shippingOverrides, setShippingOverrides, addresses, cardPayments, setCardPayments, resetAllStatus, matchedDeposits, setMatchedDeposits, depositorNames, setDepositorNames, googleScriptUrl, clickedChats, setClickedChats, openModal }) => {
+        const LiveTab = ({ orders, setOrders, productHistory, setProductHistory, quickShipping, setQuickShipping, shippingOverrides, setShippingOverrides, addresses, cardPayments, setCardPayments, resetAllStatus, matchedDeposits, setMatchedDeposits, depositorNames, setDepositorNames, googleScriptUrl, clickedChats, setClickedChats, openModal, keywords, setKeywords }) => {
             const [chats, setChats] = useState([]);
             const [serverDeposits, setServerDeposits] = useState([]); 
             const [manualDeposits, setManualDeposits] = useState([]); 
@@ -136,7 +137,6 @@
             const [depositSearch, setDepositSearch] = useState('');
             const [orderSearch, setOrderSearch] = useState('');
             const [filterStatus, setFilterStatus] = useState('all'); 
-            const [keywords, setKeywords] = useState(new Set()); 
             const [keywordInput, setKeywordInput] = useState('');
             const [showKeywordOnly, setShowKeywordOnly] = useState(false);
             const [connectionStatus, setConnectionStatus] = useState({ code: 'loading', msg: '연결 중...' }); 
@@ -205,6 +205,35 @@
                 catch(e) { console.error("저장 실패", e); } finally { setIsSaving(false); }
             };
             useEffect(() => { const saveInterval = setInterval(autoSaveToGoogleSheet, 60000); return () => clearInterval(saveInterval); }, [orders, shippingOverrides, quickShipping, googleScriptUrl]); 
+
+            // ✅ 주문 불러오기 (서버 로드) 함수 추가
+            const handleLoadOrders = async () => {
+                openModal("서버에 저장된 주문서를 불러오시겠습니까?\n(현재 작업 중인 내용은 덮어씌워집니다!)", 'confirm', async () => {
+                    if (!googleScriptUrl) return openModal("설정에서 URL을 입력해주세요.", 'alert');
+                    try {
+                        const res = await fetch(`${googleScriptUrl}?action=get_orders&t=${Date.now()}`);
+                        const data = await res.json();
+                        
+                        if (data && data.orders && Array.isArray(data.orders)) {
+                            const loadedOrders = data.orders.map((o, idx) => ({
+                                id: Date.now() + idx,
+                                customer: o.customer,
+                                product: o.product,
+                                quantity: Number(o.quantity),
+                                price: Number(o.price),
+                                deposit: Number(o.deposit),
+                                isCancelled: false
+                            }));
+                            setOrders(loadedOrders);
+                            openModal(`총 ${loadedOrders.length}건의 주문을 불러왔습니다!`, 'alert');
+                        } else {
+                            openModal("저장된 주문 내역이 없습니다.", 'alert');
+                        }
+                    } catch(e) {
+                        openModal("로드 실패: " + e.message, 'alert');
+                    }
+                });
+            };
 
             const addOrderLogic = (nickname, content, qty = 1) => {
                 const cleanNick = nickname.replace(/@/g, '').trim();
@@ -370,7 +399,9 @@
 
             const filteredChats = useMemo(() => {
                 let result = chats;
-                if (showKeywordOnly) result = result.filter(c => [...keywords].some(k => c.content.includes(k)));
+                // ✅ keywords.size 대신 Array.from 사용 (방어코드 추가)
+                const keywordsArray = Array.from(keywords || []);
+                if (showKeywordOnly) result = result.filter(c => keywordsArray.some(k => c.content.includes(k)));
                 if (chatSearch) result = result.filter(c => c.nickname.includes(chatSearch) || c.content.includes(chatSearch));
                 return result;
             }, [chats, chatSearch, showKeywordOnly, keywords]);
@@ -441,6 +472,9 @@
                 return { totalSales, totalDeposit, totalUnpaid, totalCardExpected };
             }, [orders, shippingOverrides, quickShipping, cardPayments]);
 
+            // ✅ keywords.size 접근을 안전하게 변경
+            const keywordsArray = Array.from(keywords || []);
+
             return (
                 <div className="flex h-full gap-2 p-2 overflow-hidden bg-gray-50 text-slate-800">
                     <datalist id="product-list">{Object.keys(productHistory).map(name => <option key={name} value={name} />)}</datalist>
@@ -456,7 +490,8 @@
                             </div>
                             <div className="flex flex-col gap-2 bg-white p-2 rounded border border-indigo-100">
                                 <form onSubmit={handleAddKeyword} className="flex gap-1"><input type="text" value={keywordInput} onChange={(e) => setKeywordInput(e.target.value)} placeholder="키워드 추가" className="flex-1 text-xs border rounded px-2 py-1 outline-none" /><button type="submit" className="bg-blue-500 text-white px-2 py-1 rounded text-xs font-bold">추가</button></form>
-                                {keywords.size > 0 && <div className="flex flex-wrap gap-1 max-h-16 overflow-y-auto scrollbar-thin mt-1 p-1 bg-gray-50 border rounded">{[...keywords].map(k => <span key={k} onClick={() => handleRemoveKeyword(k)} className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-[10px] cursor-pointer hover:bg-red-100 hover:text-red-600 flex items-center gap-1 shrink-0">{k} <Icon name="x" weight="bold"/></span>)}</div>}
+                                {/* ✅ keywords.size 대신 keywordsArray.length 사용 */}
+                                {keywordsArray.length > 0 && <div className="flex flex-wrap gap-1 max-h-16 overflow-y-auto scrollbar-thin mt-1 p-1 bg-gray-50 border rounded">{keywordsArray.map(k => <span key={k} onClick={() => handleRemoveKeyword(k)} className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-[10px] cursor-pointer hover:bg-red-100 hover:text-red-600 flex items-center gap-1 shrink-0">{k} <Icon name="x" weight="bold"/></span>)}</div>}
                             </div>
                             <div className="relative"><Icon name="magnifying-glass" className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs"/><input type="text" placeholder="닉네임/내용 검색" value={chatSearch} onChange={e => setChatSearch(e.target.value)} className="w-full text-xs pl-7 pr-2 py-1.5 border rounded focus:ring-1 focus:ring-indigo-500 outline-none" />{chatSearch && <button onClick={()=>setChatSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"><Icon name="x-circle" weight="fill" size={12}/></button>}</div>
                         </div>
@@ -498,7 +533,7 @@
                         </div>
                         
                         <div className="p-2 bg-white border-b font-bold text-indigo-700 shadow-sm flex flex-col gap-2">
-                            <div className="flex justify-between items-center"><span className="text-sm">📦 주문서 ({filteredGroupedOrders.length}명) ({totalItemsCount}건)</span><div className="flex items-center gap-2"><button onClick={resetAllStatus} className="bg-rose-500 text-white px-2 py-1 rounded text-xs font-bold hover:bg-rose-600 flex items-center gap-1" title="초기화"><Icon name="trash" weight="fill"/> 초기화</button><div className={`px-2 py-1 rounded text-xs font-bold flex items-center gap-1 ${isSaving ? 'bg-indigo-100 text-indigo-700' : 'bg-green-100 text-green-700'}`}>{isSaving ? <Icon name="spinner" className="animate-spin" /> : <Icon name="cloud-check" weight="fill" />} {isSaving ? "저장중" : "자동저장"}</div></div></div>
+                            <div className="flex justify-between items-center"><span className="text-sm">📦 주문서 ({filteredGroupedOrders.length}명) ({totalItemsCount}건)</span><div className="flex items-center gap-2"><button onClick={handleLoadOrders} className="bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold flex items-center gap-1 shadow-sm" title="서버에서 불러오기"><Icon name="cloud-arrow-down" weight="fill"/> 불러오기</button><button onClick={resetAllStatus} className="bg-rose-500 text-white px-2 py-1 rounded text-xs font-bold hover:bg-rose-600 flex items-center gap-1" title="초기화"><Icon name="trash" weight="fill"/> 초기화</button><div className={`px-2 py-1 rounded text-xs font-bold flex items-center gap-1 ${isSaving ? 'bg-indigo-100 text-indigo-700' : 'bg-green-100 text-green-700'}`}>{isSaving ? <Icon name="spinner" className="animate-spin" /> : <Icon name="cloud-check" weight="fill" />} {isSaving ? "저장중" : "자동저장"}</div></div></div>
                             <div className="flex gap-2 items-center"><div className="flex-1 flex gap-1 items-center bg-indigo-50 p-1 rounded border border-indigo-100"><span className="text-xs font-bold text-indigo-600 whitespace-nowrap pl-1">🖐️</span><form onSubmit={handleManualSubmit} className="flex gap-1 w-full"><input type="text" placeholder="닉네임" value={manualNick} onChange={e => setManualNick(e.target.value)} className="w-20 border rounded px-2 py-1 text-xs outline-none" /><input type="text" list="product-list" placeholder="상품명" value={manualProduct} onChange={e => setManualProduct(e.target.value)} className="flex-1 border rounded px-2 py-1 text-xs outline-none" /><button type="submit" className="bg-indigo-600 text-white px-2 py-1 rounded text-xs font-bold hover:bg-indigo-700">＋</button></form></div><div className="w-32 relative"><Icon name="magnifying-glass" className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs"/><input type="text" placeholder="검색..." value={orderSearch} onChange={(e) => setOrderSearch(e.target.value)} className="w-full pl-6 pr-2 py-1 border rounded text-xs outline-none" />{orderSearch && <button onClick={()=>setOrderSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"><Icon name="x-circle" weight="fill" size={10}/></button>}</div></div>
                         </div>
 
@@ -844,6 +879,12 @@
             const [depositorNames, setDepositorNames] = useState(() => { try { return JSON.parse(localStorage.getItem('depositorNames')) || {}; } catch { return {}; } });
             const [clickedChats, setClickedChats] = useState(() => { const saved = localStorage.getItem('clickedChats'); return saved ? new Set(JSON.parse(saved)) : new Set(); });
             
+            // ✅ [수정] 누락된 keywords 상태 정의 추가
+            const [keywords, setKeywords] = useState(() => { 
+                const saved = localStorage.getItem('keywords'); 
+                return saved ? new Set(JSON.parse(saved)) : new Set(); 
+            });
+
             const [isSettingsOpen, setIsSettingsOpen] = useState(false); 
             const [googleScriptUrl, setGoogleScriptUrl] = useState(() => localStorage.getItem('googleScriptUrl') || DEFAULT_GOOGLE_SCRIPT_URL);
             const [customerSheetId, setCustomerSheetId] = useState(() => localStorage.getItem('customerSheetId') || DEFAULT_CUSTOMER_SHEET_ID);
@@ -880,11 +921,13 @@
             useEffect(() => { localStorage.setItem('googleScriptUrl', googleScriptUrl); }, [googleScriptUrl]);
             useEffect(() => { localStorage.setItem('clickedChats', JSON.stringify([...clickedChats])); }, [clickedChats]);
             useEffect(() => { localStorage.setItem('customerSheetId', customerSheetId); }, [customerSheetId]);
+            // ✅ 키워드 저장
+            useEffect(() => { localStorage.setItem('keywords', JSON.stringify([...keywords])); }, [keywords]);
 
             const tabs = [ { id: 'live', label: '라이브관제', icon: 'monitor-play' }, { id: 'customer', label: '고객관리', icon: 'address-book' }, { id: 'cs', label: 'CS관리', icon: 'headset' }, { id: 'manage', label: '주문관리(엑셀)', icon: 'file-xls' } ];
 
             const resetAllStatus = () => {
-                openModal("모든 주문서 작업 내용과 매칭 기록, **그리고 저장된 상품 목록**을 초기화하시겠습니까?\n\n(주소록과 CS 내역은 유지됩니다.)", 'confirm', () => {
+                openModal("모든 주문서 작업 내용과 매칭 기록, **그리고 저장된 상품 목록**을 초기화하시겠습니까?\n\n(주소록과 CS 내역, 키워드는 유지됩니다.)", 'confirm', () => {
                     setOrders([]); setCardPayments({}); setShippingOverrides({}); setMatchedDeposits(new Set());
                     setProductHistory({}); 
                     setClickedChats(new Set()); 
@@ -951,7 +994,7 @@
                     )}
                     <main className="flex-1 overflow-hidden bg-gray-100 p-2 relative">
                         {/* googleScriptUrl props 전달 및 clickedChats 상태 전달 */}
-                        {activeTab === 'live' && (<LiveTab orders={orders} setOrders={setOrders} productHistory={productHistory} setProductHistory={setProductHistory} quickShipping={quickShipping} setQuickShipping={setQuickShipping} shippingOverrides={shippingOverrides} setShippingOverrides={setShippingOverrides} bankAccount={bankAccount} setBankAccount={setBankAccount} googleScriptUrl={googleScriptUrl} addresses={addresses} setAddresses={setAddresses} cardPayments={cardPayments} setCardPayments={setCardPayments} resetAllStatus={resetAllStatus} matchedDeposits={matchedDeposits} setMatchedDeposits={setMatchedDeposits} depositorNames={depositorNames} setDepositorNames={setDepositorNames} clickedChats={clickedChats} setClickedChats={setClickedChats} openModal={openModal} />)}
+                        {activeTab === 'live' && (<LiveTab orders={orders} setOrders={setOrders} productHistory={productHistory} setProductHistory={setProductHistory} quickShipping={quickShipping} setQuickShipping={setQuickShipping} shippingOverrides={shippingOverrides} setShippingOverrides={setShippingOverrides} bankAccount={bankAccount} setBankAccount={setBankAccount} googleScriptUrl={googleScriptUrl} addresses={addresses} setAddresses={setAddresses} cardPayments={cardPayments} setCardPayments={setCardPayments} resetAllStatus={resetAllStatus} matchedDeposits={matchedDeposits} setMatchedDeposits={setMatchedDeposits} depositorNames={depositorNames} setDepositorNames={setDepositorNames} clickedChats={clickedChats} setClickedChats={setClickedChats} openModal={openModal} keywords={keywords} setKeywords={setKeywords} />)}
                         {/* ✅ customerSheetId props 전달 */}
                         {activeTab === 'customer' && (<CustomerTab addresses={addresses} setAddresses={setAddresses} googleScriptUrl={googleScriptUrl} customerSheetId={customerSheetId} openModal={openModal} />)}
                         {activeTab === 'cs' && (<CSTab csData={csData} setCsData={setCsData} openModal={openModal} />)}
