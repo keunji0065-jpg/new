@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>깔로 주문서 PRO (스마트 주소매칭)</title>
+    <title>깔로 주문서 PRO (강력매칭)</title>
     
     <!-- 라이브러리 로드 -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin="anonymous"></script>
@@ -53,6 +53,7 @@
         const DEFAULT_GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx-xAIb3GT5gRO69jwJu_wROo-2UuozJ8fY-MAeuEtllmAIbu_J-Uh5oPX71YJ9Omnhbw/exec";
         const FIXED_BANK_ACCOUNT = "카카오뱅크 김선정\n7942 18 01611";
         const DEFAULT_CUSTOMER_SHEET_ID = "1zlL6R8iCy-6ZRMqj6dbefhkwSyRzHibDYBNJLmE35bM";
+        // 🔒 [보안] 접속 비밀번호
         const APP_PASSWORD = "003637";
         
         const Icon = ({ name, className="", weight="regular", size }) => <i className={`ph ph-${name} ${className}`} data-phosphor-icon-weight={weight} style={{fontSize: size}}></i>;
@@ -179,45 +180,40 @@
 
             const allDeposits = useMemo(() => [...manualDeposits, ...serverDeposits], [manualDeposits, serverDeposits]);
             
-            // ✅ [수정] 주소 찾기 로직 개선 (매핑된 주소 우선, 없으면 띄어쓰기 무시 비교)
+            // ✅ [수정] 닉네임 정규화 함수 (특수문자, 공백 제거)
+            const normalizeString = (str) => String(str || '').replace(/[\s\(\)\[\]\{\}\-\_\.\,\/]/g, '').toLowerCase();
+
+            // ✅ [수정] 주소 찾기 로직 개선 (매핑된 주소 우선, 없으면 강력한 정규화 비교)
             const findAddress = (nick) => {
-                // 1. 수동 연결(매핑)된 주소가 있는지 확인
                 if (addressMapping[nick]) {
                     const mappedNick = addressMapping[nick];
-                    return addresses.find(a => String(a.nickname || '').replace(/\s/g, '') === String(mappedNick).replace(/\s/g, ''));
+                    return addresses.find(a => normalizeString(a.nickname) === normalizeString(mappedNick));
                 }
-                // 2. 없으면 닉네임 일치(띄어쓰기 무시) 확인
-                return addresses.find(a => String(a.nickname || '').replace(/\s/g, '') === String(nick || '').replace(/\s/g, ''));
+                const nickNorm = normalizeString(nick);
+                return addresses.find(a => normalizeString(a.nickname) === nickNorm);
             };
 
-            // ✅ [추가] 유사한 주소 닉네임 추천 찾기
+            // ✅ [추가] 유사한 주소 닉네임 추천 찾기 (정규화 기반)
             const findAddressSuggestions = (nick) => {
                 if (!nick) return [];
-                const cleanNick = String(nick).replace(/\s/g, '').toLowerCase();
+                const cleanNick = normalizeString(nick);
                 if (cleanNick.length < 2) return [];
 
                 return addresses.filter(a => {
-                    const cleanAddrNick = String(a.nickname).replace(/\s/g, '').toLowerCase();
-                    // 서로 포함관계인 경우 추천 (예: 코알라35-KR <-> 코알라35)
+                    const cleanAddrNick = normalizeString(a.nickname);
+                    // 서로 포함관계인 경우 추천
                     return cleanAddrNick !== cleanNick && (cleanAddrNick.includes(cleanNick) || cleanNick.includes(cleanAddrNick));
-                }).map(a => a.nickname).slice(0, 3); // 최대 3개까지만
+                }).map(a => a.nickname).slice(0, 3);
             };
 
-            // ✅ [추가] 주소 수동 매핑 처리
             const handleAddressMapping = (orderNick, addressNick) => {
                  if (confirm(`'${orderNick}'님의 주문을 '${addressNick}'님의 주소로 연결하시겠습니까?`)) {
                      setAddressMapping(prev => ({ ...prev, [orderNick]: addressNick }));
                  }
             };
-
-            // ✅ [추가] 주소 매핑 해제
             const handleAddressUnmapping = (orderNick) => {
                  if (confirm(`'${orderNick}'님의 주소 연결을 해제하시겠습니까?`)) {
-                     setAddressMapping(prev => {
-                         const next = { ...prev };
-                         delete next[orderNick];
-                         return next;
-                     });
+                     setAddressMapping(prev => { const next = { ...prev }; delete next[orderNick]; return next; });
                  }
             };
 
@@ -316,9 +312,12 @@
 
             const handleChatClick = (chat) => { setClickedChats(prev => new Set(prev).add(chat.id)); addOrderLogic(chat.nickname, chat.content, 1, true); };
             const handleManualSubmit = (e) => { e.preventDefault(); if (!manualNick.trim()) return openModal("닉네임을 입력해주세요.", 'alert'); addOrderLogic(manualNick, manualProduct, 1); setManualProduct(''); };
+            
+            // ✅ [수정] 입금 클릭 로직 (특수문자 무시 등 강력한 매칭)
             const handleDepositClick = (deposit) => {
                 const depositId = deposit.id;
                 const currentMatched = matchedDeposits || new Set();
+
                 if (currentMatched.has(depositId)) {
                     openModal("이 입금 확인을 취소하시겠습니까?", 'confirm', () => {
                         if (selectedNick) {
@@ -336,11 +335,29 @@
                     return;
                 }
 
-                const depositNameClean = deposit.name.replace(/\s/g, '').toLowerCase();
+                // 2. 입금자명으로 고객 찾기 (강력해진 매칭)
+                const depositNameClean = normalizeString(deposit.name);
                 const uniqueCustomers = [...new Set(orders.map(o => o.customer))];
-                let matchedCustomer = uniqueCustomers.find(c => { const savedRealName = depositorNames[c] ? depositorNames[c].replace(/\s/g, '').toLowerCase() : ''; return savedRealName === depositNameClean; });
-                if (!matchedCustomer) { matchedCustomer = uniqueCustomers.find(c => c.replace(/\s/g, '').toLowerCase() === depositNameClean); }
-                if (!matchedCustomer) { matchedCustomer = uniqueCustomers.find(c => { const nickClean = c.replace(/\s/g, '').toLowerCase(); if (depositNameClean.length < 2 || nickClean.length < 2) return false; return nickClean.includes(depositNameClean) || depositNameClean.includes(nickClean); }); }
+                
+                // (1) 실명 매칭
+                let matchedCustomer = uniqueCustomers.find(c => {
+                    const savedRealName = depositorNames[c] ? normalizeString(depositorNames[c]) : '';
+                    return savedRealName === depositNameClean;
+                });
+
+                // (2) 닉네임 정밀 매칭 (특수문자 제거 후 일치)
+                if (!matchedCustomer) {
+                    matchedCustomer = uniqueCustomers.find(c => normalizeString(c) === depositNameClean);
+                }
+                
+                // (3) 포함 관계 매칭 (올리브황금색 <-> 올리브황금)
+                if (!matchedCustomer) {
+                    matchedCustomer = uniqueCustomers.find(c => {
+                        const nickClean = normalizeString(c);
+                        if (depositNameClean.length < 2 || nickClean.length < 2) return false;
+                        return nickClean.includes(depositNameClean) || depositNameClean.includes(nickClean);
+                    });
+                }
 
                 if (matchedCustomer) {
                     if (selectedNick === matchedCustomer) {
@@ -433,6 +450,7 @@
 
             const filteredChats = useMemo(() => { let result = chats; const keywordsArray = Array.from(keywords || []); if (showKeywordOnly) result = result.filter(c => keywordsArray.some(k => c.content.includes(k))); if (chatSearch) result = result.filter(c => c.nickname.includes(chatSearch) || c.content.includes(chatSearch)); return result; }, [chats, chatSearch, showKeywordOnly, keywords]);
             
+            // ✅ [수정] 입금 내역 정렬 시에도 normalize 적용하여 유사도 판단
             const filteredDeposits = useMemo(() => { 
                 let result = [...allDeposits]; 
                 result = result.filter(d => !deletedDepositIds.has(d.id));
@@ -448,20 +466,26 @@
                     if (!aUsed && bUsed) return -1;
 
                     if (selectedNick) {
-                        const targetNick = String(selectedNick).replace(/\s/g, '').toLowerCase(); 
-                        const depositorName = depositorNames && depositorNames[selectedNick];
-                        const targetReal = depositorName ? String(depositorName).replace(/\s/g, '').toLowerCase() : '';
+                        const targetNick = normalizeString(selectedNick);
+                        const depositorName = depositorNames[selectedNick] && normalizeString(depositorNames[selectedNick]);
+                        const targetReal = depositorName || '';
                         
-                        const nameA = a.name ? String(a.name).replace(/\s/g, '').toLowerCase() : '';
-                        const nameB = b.name ? String(b.name).replace(/\s/g, '').toLowerCase() : '';
+                        const nameA = normalizeString(a.name);
+                        const nameB = normalizeString(b.name);
                         
                         const getScore = (val, target) => { 
-                            if (!target || !val) return 10; 
-                            if (val === target) return 0; 
-                            if (val.startsWith(target) || target.startsWith(val)) return 1; 
-                            if (val.includes(target) || target.includes(val)) return 2; 
-                            for (let i = 0; i < target.length - 1; i++) {
-                                if (val.includes(target.substring(i, i + 2))) return 3;
+                            if (!target || !val) return 10;
+                            
+                            const v = normalizeString(val);
+                            const t = normalizeString(target);
+
+                            if (v === t) return 0; 
+                            if (v.startsWith(t) || t.startsWith(v)) return 1; 
+                            if (v.includes(t) || t.includes(v)) return 2;
+                             
+                            // 2글자 이상 연속 일치 체크
+                            for (let i = 0; i < t.length - 1; i++) {
+                                if (v.includes(t.substring(i, i + 2))) return 3;
                             }
                             return 10; 
                         };
@@ -633,6 +657,7 @@
                                             <div className="flex flex-col gap-1 items-end">
                                                 <div className="flex items-center gap-2"><span className="font-bold text-sm font-mono text-gray-800">{grandTotal.toLocaleString()}원</span>{statusBadge}</div>
                                                 <div className="flex items-center gap-1">
+                                                    {/* ✅ [추가] 주문서 체크 토글 버튼 */}
                                                     <button 
                                                         onClick={(e) => { e.stopPropagation(); handleOrderCheckToggle(nick); }}
                                                         className={`px-1.5 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 shadow-sm transition-all border ${isOrderConfirmed ? 'bg-blue-100 text-blue-700 border-blue-300' : 'bg-gray-100 text-gray-400 border-gray-200 hover:bg-gray-200'}`}
@@ -650,6 +675,7 @@
                                                 return (
                                                     <div key={idx} className={`flex justify-between items-center text-xs p-1 rounded group transition-colors ${item.isCancelled ? 'bg-red-50/80 border border-red-100' : 'hover:bg-gray-50'}`}>
                                                         <div className="flex-1 flex gap-1 items-center">
+                                                            {/* ✅ 취소 상태 표시 강화 */}
                                                             {item.isCancelled && <span className="text-[9px] text-red-500 font-bold shrink-0">[취소]</span>}
                                                             <input 
                                                                 type="text" 
@@ -668,6 +694,7 @@
                                                         </div>
                                                         <div className="flex items-center gap-1 pl-1">
                                                             <span className={`font-bold px-1 rounded text-[10px] shrink-0 ${item.isCancelled ? 'text-gray-400' : 'text-indigo-600 bg-indigo-50'}`}>
+                                                                {/* ✅ 수량 더블클릭 수정 부분 */}
                                                                 {editingQuantityId === item.id ? (
                                                                     <input 
                                                                         type="number" 
@@ -710,6 +737,9 @@
             );
         };
 
+        // ... (CustomerTab, CSTab, OrderManagementTab, App 컴포넌트는 이전과 동일)
+        // (코드 길이상 생략된 부분은 기존과 동일합니다. LiveTab만 수정되었습니다.)
+        
         const CustomerTab = ({ addresses, setAddresses, googleScriptUrl, customerSheetId, openModal }) => {
             const [searchTerm, setSearchTerm] = useState('');
             const fileInputRef = useRef(null);
@@ -891,7 +921,6 @@
 
             return (
                 <div className="flex flex-col items-center justify-center h-full p-10 gap-6 overflow-y-auto content-center">
-                    
                     <div className="w-full max-w-4xl grid grid-cols-2 gap-4 mb-6">
                          <div className="bg-indigo-50 p-6 rounded-xl border border-indigo-200 flex flex-col items-center justify-center gap-2">
                             <h3 className="font-bold text-indigo-800 flex items-center gap-2"><Icon name="download-simple" weight="fill"/> 데이터 백업</h3>
