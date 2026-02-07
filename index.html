@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>깔로 주문서 PRO (강력매칭)</title>
+    <title>깔로 주문서 PRO (최종통합)</title>
     
     <!-- 라이브러리 로드 -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin="anonymous"></script>
@@ -65,6 +65,7 @@
             XLSX.writeFile(wb, `${fileName}_${new Date().toLocaleDateString()}.xlsx`);
         };
 
+        // --- 공용 컴포넌트 ---
         const Modal = ({ isOpen, type, message, onConfirm, onCancel, initialValue }) => {
             const [inputValue, setInputValue] = useState(initialValue || '');
             const inputRef = useRef(null);
@@ -131,6 +132,7 @@
             );
         };
 
+        // --- LiveTab ---
         const LiveTab = ({ orders, setOrders, productHistory, setProductHistory, quickShipping, setQuickShipping, shippingOverrides, setShippingOverrides, bankAccount, googleScriptUrl, addresses, cardPayments, setCardPayments, resetAllStatus, matchedDeposits, setMatchedDeposits, depositorNames, setDepositorNames, clickedChats, setClickedChats, openModal, keywords, setKeywords, sentAddressRequests, setSentAddressRequests, deletedDepositIds, setDeletedDepositIds, checkedOrders, setCheckedOrders, addressMapping, setAddressMapping }) => {
             const [chats, setChats] = useState([]);
             const [serverDeposits, setServerDeposits] = useState([]); 
@@ -164,13 +166,20 @@
                     
                     const data = JSON.parse(text);
                     if (data.chats) {
-                        const cleanChats = data.chats.map(chat => ({ ...chat, nickname: String(chat.nickname).replace(/@/g, '').trim() }));
+                        const cleanChats = data.chats.map(chat => ({
+                            ...chat,
+                            nickname: String(chat.nickname).replace(/@/g, '').trim()
+                        }));
                         setChats(prev => JSON.stringify(prev) !== JSON.stringify(cleanChats) ? cleanChats : prev);
                         if (cleanChats.length === 0 && (!data.deposits || data.deposits.length === 0)) { setConnectionStatus(prev => prev.code === 'warning_empty' ? prev : { code: 'warning_empty', msg: '데이터 0건 (연결됨)' }); } 
                         else { setConnectionStatus(prev => prev.code === 'success' ? prev : { code: 'success', msg: '🟢 연결 성공' }); }
                     }
                     if (data.deposits) {
-                        const stableDeposits = data.deposits.map((d, i) => ({ ...d, id: d.uid || `dep_${d.name}_${d.amount}_${i}`, source: 'server' }));
+                        const stableDeposits = data.deposits.map((d, i) => ({
+                            ...d,
+                            id: d.uid || `dep_${d.name}_${d.amount}_${i}`,
+                            source: 'server'
+                        }));
                         setServerDeposits(prev => JSON.stringify(prev) !== JSON.stringify(stableDeposits) ? stableDeposits : prev);
                     }
                 } catch (e) { console.warn("통신 실패:", e); setConnectionStatus(prev => prev.code === 'error_fetch' ? prev : { code: 'error_fetch', msg: '연결 재시도 중...' }); }
@@ -180,10 +189,10 @@
 
             const allDeposits = useMemo(() => [...manualDeposits, ...serverDeposits], [manualDeposits, serverDeposits]);
             
-            // ✅ [수정] 닉네임 정규화 함수 (특수문자, 공백 제거)
+            // 닉네임 정규화 함수
             const normalizeString = (str) => String(str || '').replace(/[\s\(\)\[\]\{\}\-\_\.\,\/]/g, '').toLowerCase();
 
-            // ✅ [수정] 주소 찾기 로직 개선 (매핑된 주소 우선, 없으면 강력한 정규화 비교)
+            // 주소 찾기
             const findAddress = (nick) => {
                 if (addressMapping[nick]) {
                     const mappedNick = addressMapping[nick];
@@ -193,15 +202,13 @@
                 return addresses.find(a => normalizeString(a.nickname) === nickNorm);
             };
 
-            // ✅ [추가] 유사한 주소 닉네임 추천 찾기 (정규화 기반)
+            // 주소 추천
             const findAddressSuggestions = (nick) => {
                 if (!nick) return [];
                 const cleanNick = normalizeString(nick);
                 if (cleanNick.length < 2) return [];
-
                 return addresses.filter(a => {
                     const cleanAddrNick = normalizeString(a.nickname);
-                    // 서로 포함관계인 경우 추천
                     return cleanAddrNick !== cleanNick && (cleanAddrNick.includes(cleanNick) || cleanNick.includes(cleanAddrNick));
                 }).map(a => a.nickname).slice(0, 3);
             };
@@ -228,7 +235,13 @@
                 if (!googleScriptUrl || Object.keys(orders).length === 0) return; 
                 setIsSaving(true);
                 const saveList = orders.filter(o=>!o.isCancelled).map(o => {
-                    const addr = findAddress(o.customer) || {};
+                    let addr = {};
+                    if (addressMapping[o.customer]) {
+                        const mappedNick = addressMapping[o.customer];
+                        addr = addresses.find(a => normalizeString(a.nickname) === normalizeString(mappedNick)) || {};
+                    } else {
+                        addr = addresses.find(a => normalizeString(a.nickname) === normalizeString(o.customer)) || {};
+                    }
                     const currentShipping = shippingOverrides[o.customer] !== undefined ? shippingOverrides[o.customer] : Number(quickShipping);
                     return { nickname: o.customer, product: o.product, qty: o.quantity, price: o.price, deposit: o.deposit, shipping: currentShipping, grandTotal: 0, address: addr.address || '', zipcode: addr.zipcode || '', phone: addr.phone || '', realname: addr.realname || '', memo: addr.memo || '' };
                 });
@@ -313,7 +326,6 @@
             const handleChatClick = (chat) => { setClickedChats(prev => new Set(prev).add(chat.id)); addOrderLogic(chat.nickname, chat.content, 1, true); };
             const handleManualSubmit = (e) => { e.preventDefault(); if (!manualNick.trim()) return openModal("닉네임을 입력해주세요.", 'alert'); addOrderLogic(manualNick, manualProduct, 1); setManualProduct(''); };
             
-            // ✅ [수정] 입금 클릭 로직 (특수문자 무시 등 강력한 매칭)
             const handleDepositClick = (deposit) => {
                 const depositId = deposit.id;
                 const currentMatched = matchedDeposits || new Set();
@@ -335,22 +347,18 @@
                     return;
                 }
 
-                // 2. 입금자명으로 고객 찾기 (강력해진 매칭)
                 const depositNameClean = normalizeString(deposit.name);
                 const uniqueCustomers = [...new Set(orders.map(o => o.customer))];
                 
-                // (1) 실명 매칭
                 let matchedCustomer = uniqueCustomers.find(c => {
                     const savedRealName = depositorNames[c] ? normalizeString(depositorNames[c]) : '';
                     return savedRealName === depositNameClean;
                 });
 
-                // (2) 닉네임 정밀 매칭 (특수문자 제거 후 일치)
                 if (!matchedCustomer) {
                     matchedCustomer = uniqueCustomers.find(c => normalizeString(c) === depositNameClean);
                 }
                 
-                // (3) 포함 관계 매칭 (올리브황금색 <-> 올리브황금)
                 if (!matchedCustomer) {
                     matchedCustomer = uniqueCustomers.find(c => {
                         const nickClean = normalizeString(c);
@@ -450,7 +458,6 @@
 
             const filteredChats = useMemo(() => { let result = chats; const keywordsArray = Array.from(keywords || []); if (showKeywordOnly) result = result.filter(c => keywordsArray.some(k => c.content.includes(k))); if (chatSearch) result = result.filter(c => c.nickname.includes(chatSearch) || c.content.includes(chatSearch)); return result; }, [chats, chatSearch, showKeywordOnly, keywords]);
             
-            // ✅ [수정] 입금 내역 정렬 시에도 normalize 적용하여 유사도 판단
             const filteredDeposits = useMemo(() => { 
                 let result = [...allDeposits]; 
                 result = result.filter(d => !deletedDepositIds.has(d.id));
@@ -482,8 +489,6 @@
                             if (v === t) return 0; 
                             if (v.startsWith(t) || t.startsWith(v)) return 1; 
                             if (v.includes(t) || t.includes(v)) return 2;
-                             
-                            // 2글자 이상 연속 일치 체크
                             for (let i = 0; i < t.length - 1; i++) {
                                 if (v.includes(t.substring(i, i + 2))) return 3;
                             }
@@ -675,7 +680,6 @@
                                                 return (
                                                     <div key={idx} className={`flex justify-between items-center text-xs p-1 rounded group transition-colors ${item.isCancelled ? 'bg-red-50/80 border border-red-100' : 'hover:bg-gray-50'}`}>
                                                         <div className="flex-1 flex gap-1 items-center">
-                                                            {/* ✅ 취소 상태 표시 강화 */}
                                                             {item.isCancelled && <span className="text-[9px] text-red-500 font-bold shrink-0">[취소]</span>}
                                                             <input 
                                                                 type="text" 
@@ -694,7 +698,6 @@
                                                         </div>
                                                         <div className="flex items-center gap-1 pl-1">
                                                             <span className={`font-bold px-1 rounded text-[10px] shrink-0 ${item.isCancelled ? 'text-gray-400' : 'text-indigo-600 bg-indigo-50'}`}>
-                                                                {/* ✅ 수량 더블클릭 수정 부분 */}
                                                                 {editingQuantityId === item.id ? (
                                                                     <input 
                                                                         type="number" 
@@ -737,9 +740,6 @@
             );
         };
 
-        // ... (CustomerTab, CSTab, OrderManagementTab, App 컴포넌트는 이전과 동일)
-        // (코드 길이상 생략된 부분은 기존과 동일합니다. LiveTab만 수정되었습니다.)
-        
         const CustomerTab = ({ addresses, setAddresses, googleScriptUrl, customerSheetId, openModal }) => {
             const [searchTerm, setSearchTerm] = useState('');
             const fileInputRef = useRef(null);
@@ -888,21 +888,50 @@
             );
         };
 
-        const OrderManagementTab = ({ orders, shippingOverrides, quickShipping, addresses, handleExportBackup, handleImportBackup }) => {
+        const OrderManagementTab = ({ orders, shippingOverrides, quickShipping, addresses, handleExportBackup, handleImportBackup, addressMapping }) => {
             const fileInputRef = useRef(null);
             
             const handleExportProducts = () => { const summary = {}; orders.forEach(o => { if(o.isCancelled) return; const name = o.product || '(상품명 없음)'; if (!summary[name]) summary[name] = 0; summary[name] += Number(o.quantity); }); const data = Object.entries(summary).map(([product, qty]) => ({ '상품명': product, '총필요수량': qty })); downloadExcel(data, '상품별_발주리스트'); };
-            const handleExportCustomers = () => { const groups = {}; orders.forEach(o => { if (!groups[o.customer]) groups[o.customer] = []; groups[o.customer].push(o); }); let excelRows = []; Object.entries(groups).forEach(([nick, items]) => { const activeItems = items.filter(i => !i.isCancelled); if(activeItems.length === 0) return; const addrInfo = addresses.find(a => a.nickname.trim() === nick.trim()) || {}; const fullAddress = addrInfo.zipcode ? `(${addrInfo.zipcode}) ${addrInfo.address || ''}` : (addrInfo.address || ''); const createRow = (productValue) => ({ '날짜시간': new Date().toLocaleString(), '공란1': '', '공란2': '', '닉네임': nick, '주문제품(수량)': productValue, '이름': addrInfo.realname || '', '핸드폰번호': addrInfo.phone || '', '주소': fullAddress, '배송메모': addrInfo.memo || '' }); excelRows.push(createRow(`[ ${nick} ]`)); activeItems.forEach(item => { const qtyPart = item.quantity > 1 ? ` ★ ${item.quantity}개` : ''; excelRows.push(createRow(`${item.product}${qtyPart}`)); }); }); downloadExcel(excelRows, '고객별_정산_배송리스트'); };
+            
+            const normalizeString = (str) => String(str || '').replace(/[\s\(\)\[\]\{\}\-\_\.\,\/]/g, '').toLowerCase();
+
+            const findAddress = (nick) => {
+                if (addressMapping && addressMapping[nick]) {
+                    const mappedNick = addressMapping[nick];
+                    return addresses.find(a => normalizeString(a.nickname) === normalizeString(mappedNick));
+                }
+                const nickNorm = normalizeString(nick);
+                return addresses.find(a => normalizeString(a.nickname) === nickNorm);
+            };
+
+            const handleExportCustomers = () => { 
+                const groups = {}; 
+                orders.forEach(o => { if (!groups[o.customer]) groups[o.customer] = []; groups[o.customer].push(o); }); 
+                let excelRows = []; 
+                Object.entries(groups).forEach(([nick, items]) => { 
+                    const activeItems = items.filter(i => !i.isCancelled); 
+                    if(activeItems.length === 0) return; 
+                    
+                    const addrInfo = findAddress(nick) || {}; 
+                    
+                    const fullAddress = addrInfo.zipcode ? `(${addrInfo.zipcode}) ${addrInfo.address || ''}` : (addrInfo.address || ''); 
+                    const createRow = (productValue) => ({ '날짜시간': new Date().toLocaleString(), '공란1': '', '공란2': '', '닉네임': nick, '주문제품(수량)': productValue, '이름': addrInfo.realname || '', '핸드폰번호': addrInfo.phone || '', '주소': fullAddress, '배송메모': addrInfo.memo || '' }); 
+                    excelRows.push(createRow(`[ ${nick} ]`)); 
+                    activeItems.forEach(item => { const qtyPart = item.quantity > 1 ? ` ★ ${item.quantity}개` : ''; excelRows.push(createRow(`${item.product}${qtyPart}`)); }); 
+                }); 
+                downloadExcel(excelRows, '고객별_정산_배송리스트'); 
+            };
             
             const handleExportAllRawData = () => {
                 const data = orders.map(o => {
-                    const addrInfo = addresses.find(a => a.nickname.trim() === o.customer.trim()) || {};
-                    const currentShipping = shippingOverrides[o.customer] !== undefined ? shippingOverrides[o.customer] : Number(quickShipping);
+                    const customerName = String(o.customer || '').trim();
+                    const addrInfo = findAddress(customerName) || {};
+                    const currentShipping = shippingOverrides[customerName] !== undefined ? shippingOverrides[customerName] : Number(quickShipping);
                     
                     return {
                         '주문ID': o.id,
                         '작성일시': new Date(o.id).toLocaleString(),
-                        '닉네임': o.customer,
+                        '닉네임': customerName,
                         '상품명': o.product,
                         '수량': o.quantity,
                         '가격': o.price,
@@ -1161,8 +1190,8 @@
                         {/* ✅ customerSheetId props 전달 */}
                         {activeTab === 'customer' && (<CustomerTab addresses={addresses} setAddresses={setAddresses} googleScriptUrl={googleScriptUrl} customerSheetId={customerSheetId} openModal={openModal} />)}
                         {activeTab === 'cs' && (<CSTab csData={csData} setCsData={setCsData} openModal={openModal} />)}
-                        {/* ✅ handleExportBackup, handleImportBackup 전달 */}
-                        {activeTab === 'manage' && (<OrderManagementTab orders={orders} shippingOverrides={shippingOverrides} quickShipping={quickShipping} addresses={addresses} handleExportBackup={handleExportBackup} handleImportBackup={handleImportBackup} />)}
+                        {/* ✅ handleExportBackup, handleImportBackup, addressMapping 전달 */}
+                        {activeTab === 'manage' && (<OrderManagementTab orders={orders} shippingOverrides={shippingOverrides} quickShipping={quickShipping} addresses={addresses} handleExportBackup={handleExportBackup} handleImportBackup={handleImportBackup} addressMapping={addressMapping} />)}
                     </main>
                 </div>
             );
