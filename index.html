@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>깔로 주문서 PRO (주문체크기능)</title>
+    <title>깔로 주문서 PRO (입금연동강화)</title>
     
     <!-- 라이브러리 로드 -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin="anonymous"></script>
@@ -346,9 +346,13 @@
 
             const handleChatClick = (chat) => { setClickedChats(prev => new Set(prev).add(chat.id)); addOrderLogic(chat.nickname, chat.content, 1, true); };
             const handleManualSubmit = (e) => { e.preventDefault(); if (!manualNick.trim()) return openModal("닉네임을 입력해주세요.", 'alert'); addOrderLogic(manualNick, manualProduct, 1); setManualProduct(''); };
+            
+            // ✅ [수정] 입금 클릭 로직 (자동 검색 및 매칭 강화)
             const handleDepositClick = (deposit) => {
                 const depositId = deposit.id;
                 const currentMatched = matchedDeposits || new Set();
+
+                // 1. 이미 매칭된 경우 -> 취소
                 if (currentMatched.has(depositId)) {
                     openModal("이 입금 확인을 취소하시겠습니까?", 'confirm', () => {
                         if (selectedNick) {
@@ -365,16 +369,65 @@
                     });
                     return;
                 }
-                if (!selectedNick) return openModal("오른쪽에서 닉네임을 먼저 선택해주세요!", 'alert');
-                const depositAmount = Number(deposit.amount);
-                setOrders(prev => {
-                    const targetOrders = prev.filter(o => o.customer === selectedNick);
-                    const otherOrders = prev.filter(o => o.customer !== selectedNick);
-                    if (targetOrders.length === 0) return prev;
-                    const updatedTargets = targetOrders.map((o, i) => { if (i === 0) return { ...o, deposit: (o.deposit || 0) + depositAmount }; return o; });
-                    return [...updatedTargets, ...otherOrders];
+
+                // 2. 입금자명으로 고객 찾기 (실명, 닉네임, 부분일치)
+                const depositNameClean = deposit.name.replace(/\s/g, '').toLowerCase();
+                const uniqueCustomers = [...new Set(orders.map(o => o.customer))];
+                
+                let matchedCustomer = uniqueCustomers.find(c => {
+                    const savedRealName = depositorNames[c] ? depositorNames[c].replace(/\s/g, '').toLowerCase() : '';
+                    return savedRealName === depositNameClean;
                 });
-                setMatchedDeposits(prev => new Set(prev).add(depositId));
+
+                if (!matchedCustomer) {
+                    matchedCustomer = uniqueCustomers.find(c => c.replace(/\s/g, '').toLowerCase() === depositNameClean);
+                }
+                
+                if (!matchedCustomer) {
+                    matchedCustomer = uniqueCustomers.find(c => {
+                        const nickClean = c.replace(/\s/g, '').toLowerCase();
+                        if (depositNameClean.length < 2 || nickClean.length < 2) return false;
+                        return nickClean.includes(depositNameClean) || depositNameClean.includes(nickClean);
+                    });
+                }
+
+                // 3. 결과에 따른 동작
+                if (matchedCustomer) {
+                    // (A) 이미 보고 있는 고객과 같다면 -> 입금 반영
+                    if (selectedNick === matchedCustomer) {
+                        const depositAmount = Number(deposit.amount);
+                        setOrders(prev => {
+                            const targetOrders = prev.filter(o => o.customer === selectedNick);
+                            const otherOrders = prev.filter(o => o.customer !== selectedNick);
+                            if (targetOrders.length === 0) return prev;
+                            const updatedTargets = targetOrders.map((o, i) => { if (i === 0) return { ...o, deposit: (o.deposit || 0) + depositAmount }; return o; });
+                            return [...updatedTargets, ...otherOrders];
+                        });
+                        setMatchedDeposits(prev => new Set(prev).add(depositId));
+                    } else {
+                        // (B) 다른 화면을 보고 있다면 -> 해당 고객 주문서로 이동 (자동 검색)
+                        setSelectedNick(matchedCustomer);
+                        setOrderSearch(matchedCustomer);
+                    }
+                } else {
+                    // (C) 못 찾았다 -> 검색창에 이름 입력 (수동 검색 유도)
+                    setOrderSearch(deposit.name);
+                    
+                    // 만약 현재 누군가 선택되어 있다면 강제 입금 여부 묻기
+                    if (selectedNick) {
+                         openModal(`입금자명('${deposit.name}')과 일치하는 주문이 없습니다.\n\n현재 선택된 '${selectedNick}'님에게 강제로 입금 처리하시겠습니까?`, 'confirm', () => {
+                             const depositAmount = Number(deposit.amount);
+                             setOrders(prev => {
+                                 const targetOrders = prev.filter(o => o.customer === selectedNick);
+                                 const otherOrders = prev.filter(o => o.customer !== selectedNick);
+                                 if (targetOrders.length === 0) return prev;
+                                 const updatedTargets = targetOrders.map((o, i) => { if (i === 0) return { ...o, deposit: (o.deposit || 0) + depositAmount }; return o; });
+                                 return [...updatedTargets, ...otherOrders];
+                             });
+                             setMatchedDeposits(prev => new Set(prev).add(depositId));
+                         });
+                    }
+                }
             };
 
             const handleFullDepositToggle = (nick, grandTotal, currentDeposit) => {
@@ -496,6 +549,7 @@
                 
                 let groupedArray = Object.entries(groups);
                 
+                // ✅ [정렬] 최신 주문이 위로 오도록 정렬
                 groupedArray.sort((a, b) => {
                     const maxTimeA = a[1].length > 0 ? Math.max(...a[1].map(item => item.id)) : 0;
                     const maxTimeB = b[1].length > 0 ? Math.max(...b[1].map(item => item.id)) : 0;
@@ -512,6 +566,7 @@
                     const grandTotal = productTotal + (activeItems.length > 0 ? currentShipping : 0); 
                     const balance = grandTotal - depositTotal; 
                     
+                    // ✅ 0원 완납 해결
                     const isPaid = (balance <= 0) && (grandTotal >= 0) && (activeItems.length > 0);
                     
                     if (filterStatus === 'unpaid') { if (isCard || isPaid) return false; } 
@@ -698,6 +753,9 @@
             );
         };
 
+        // ... (CustomerTab, CSTab, OrderManagementTab, App 컴포넌트는 이전과 동일)
+        // (코드 길이상 생략된 부분은 기존과 동일합니다. LiveTab만 수정되었습니다.)
+        
         const CustomerTab = ({ addresses, setAddresses, googleScriptUrl, customerSheetId, openModal }) => {
             const [searchTerm, setSearchTerm] = useState('');
             const fileInputRef = useRef(null);
@@ -879,8 +937,6 @@
 
             return (
                 <div className="flex flex-col items-center justify-center h-full p-10 gap-6 overflow-y-auto content-center">
-                    
-                    {/* 상단: 백업 및 복구 섹션 (가장 중요) */}
                     <div className="w-full max-w-4xl grid grid-cols-2 gap-4 mb-6">
                          <div className="bg-indigo-50 p-6 rounded-xl border border-indigo-200 flex flex-col items-center justify-center gap-2">
                             <h3 className="font-bold text-indigo-800 flex items-center gap-2"><Icon name="download-simple" weight="fill"/> 데이터 백업</h3>
@@ -889,7 +945,6 @@
                                 <Icon name="floppy-disk" weight="fill"/> 백업 파일 저장하기
                             </button>
                         </div>
-
                         <div className="bg-rose-50 p-6 rounded-xl border border-rose-200 flex flex-col items-center justify-center gap-2">
                             <h3 className="font-bold text-rose-800 flex items-center gap-2"><Icon name="upload-simple" weight="fill"/> 데이터 복구</h3>
                             <p className="text-xs text-rose-600 text-center mb-2">저장해둔 파일을 불러와서<br/>이전 상태로 되돌립니다.</p>
@@ -899,7 +954,6 @@
                             </button>
                         </div>
                     </div>
-
                     <div className="grid grid-cols-3 gap-6 w-full max-w-5xl">
                         <div className="bg-white p-6 rounded-xl shadow-lg border text-center">
                             <div className="text-3xl mb-3">📦</div><h2 className="text-lg font-bold mb-2">발주용 품목 집계</h2><p className="text-gray-500 mb-4 text-xs">상품별 총 필요 수량 확인</p>
@@ -935,7 +989,6 @@
             const [keywords, setKeywords] = useState(() => { const saved = localStorage.getItem('keywords'); return saved ? new Set(JSON.parse(saved)) : new Set(); });
             const [sentAddressRequests, setSentAddressRequests] = useState(() => { const saved = localStorage.getItem('sentAddressRequests'); return saved ? new Set(JSON.parse(saved)) : new Set(); });
             const [deletedDepositIds, setDeletedDepositIds] = useState(() => { const saved = localStorage.getItem('deletedDepositIds'); return saved ? new Set(JSON.parse(saved)) : new Set(); });
-            
             // ✅ [추가] 주문 확인(체크) 상태 관리
             const [checkedOrders, setCheckedOrders] = useState(() => { 
                 const saved = localStorage.getItem('checkedOrders'); 
