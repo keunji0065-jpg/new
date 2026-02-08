@@ -8,7 +8,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     
-    <title>깔로 주문서 PRO (발주엑셀+수정기능)</title>
+    <title>깔로 주문서 PRO (발주단가관리)</title>
     
     <!-- 라이브러리 로드 -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin="anonymous"></script>
@@ -113,15 +113,7 @@
         const LoginScreen = ({ onLogin }) => {
             const [password, setPassword] = useState('');
             const [error, setError] = useState(false);
-            const handleSubmit = (e) => { 
-                e.preventDefault(); 
-                if (password === APP_PASSWORD) { 
-                    onLogin(); 
-                } else { 
-                    setError(true); 
-                    setTimeout(() => setError(false), 1000); 
-                } 
-            };
+            const handleSubmit = (e) => { e.preventDefault(); if (password === APP_PASSWORD) { onLogin(); } else { setError(true); setTimeout(() => setError(false), 1000); } };
             return (
                 <div className="flex flex-col items-center justify-center h-screen bg-slate-100 text-slate-700">
                     <div className="bg-white p-8 rounded-2xl shadow-xl w-80 text-center animate-scale-up border border-slate-200">
@@ -133,7 +125,6 @@
                         </form>
                         {error && <p className="text-xs text-red-500 mt-3 font-bold animate-pulse">비밀번호가 일치하지 않습니다.</p>}
                     </div>
-                    <p className="text-[10px] text-gray-400 mt-8">Secure System by Private Builder</p>
                 </div>
             );
         };
@@ -539,7 +530,6 @@
                     <datalist id="product-list">
                         {filteredProductList.map(name => <option key={name} value={name} />)}
                     </datalist>
-                    {/* LiveTab UI: 채팅창, 입금내역, 주문서 */}
                     <div className="w-[30%] flex flex-col bg-white border rounded-lg shadow-sm overflow-hidden">
                         <div className="p-2 bg-indigo-50 border-b flex flex-col gap-2">
                             <div className="font-bold text-indigo-700 flex items-center justify-between"><div className="flex items-center gap-2"><span className="flex items-center gap-1"><Icon name="youtube-logo" weight="fill" className="text-red-600"/> 라이브 댓글</span><button onClick={() => setShowKeywordOnly(!showKeywordOnly)} className={`flex items-center justify-center w-6 h-6 rounded-full transition-all ${showKeywordOnly ? 'bg-blue-600 text-white shadow-sm' : 'bg-white text-gray-400 border border-gray-200 hover:text-blue-500'}`}><Icon name="target" weight={showKeywordOnly ? "fill" : "bold"} size={14} /></button></div><span className="text-xs text-gray-500">{filteredChats.length}건</span></div>
@@ -576,7 +566,6 @@
                         </div>
                         <div className="flex-1 overflow-y-auto p-2 space-y-2">
                             {filteredGroupedOrders.map(([nick, items]) => {
-                                // ... (주문서 목록 렌더링, LiveTab 내부 로직과 동일)
                                 const isSelected = selectedNick === nick;
                                 const currentShipping = shippingOverrides[nick] !== undefined ? shippingOverrides[nick] : Number(quickShipping);
                                 const activeItems = items.filter(i => !i.isCancelled);
@@ -728,7 +717,7 @@
         };
         
         // --- 4. OrderStatusTab (발주현황) ---
-        const OrderStatusTab = ({ orders, setOrders, setProductHistory }) => {
+        const OrderStatusTab = ({ orders, setOrders, setProductHistory, productHistory }) => {
             const [expandedProduct, setExpandedProduct] = useState(null);
 
             const productStats = useMemo(() => {
@@ -736,7 +725,11 @@
                 orders.filter(o => !o.isCancelled).forEach(o => {
                     const prodName = o.product || '(상품명 없음)';
                     if (!stats[prodName]) {
-                        stats[prodName] = { totalQty: 0, customers: [] };
+                        // 초기 단가 설정 (productHistory 우선, 없으면 현재 주문에서 계산)
+                        let uPrice = productHistory[prodName] || 0;
+                        if(uPrice === 0 && o.quantity > 0) uPrice = o.price / o.quantity;
+                        
+                        stats[prodName] = { totalQty: 0, customers: [], unitPrice: uPrice };
                     }
                     stats[prodName].totalQty += o.quantity;
                     stats[prodName].customers.push({ nick: o.customer, qty: o.quantity });
@@ -745,26 +738,27 @@
                 return Object.entries(stats).sort((a, b) => {
                     return a[0].localeCompare(b[0], 'ko', { numeric: true });
                 });
-            }, [orders]);
+            }, [orders, productHistory]);
 
             const handleDownloadExcel = () => {
                 let data = [];
                 productStats.forEach(([product, info]) => {
-                    // 상품명 행 (굵게 표시할 수는 없지만 구분됨)
                     data.push({
                         '구분': '📦 상품',
                         '내용': product,
-                        '수량': info.totalQty
+                        '단가': info.unitPrice, 
+                        '수량': info.totalQty,
+                        '총액': info.unitPrice * info.totalQty
                     });
-                    // 주문자 상세 내역 (들여쓰기 느낌으로)
                     info.customers.forEach(c => {
                         data.push({
                             '구분': '└ 주문자',
                             '내용': c.nick,
-                            '수량': c.qty
+                            '단가': '-',
+                            '수량': c.qty,
+                            '총액': '-'
                         });
                     });
-                    // 빈 줄 추가
                     data.push({});
                 });
                 downloadExcel(data, '발주현황_상세');
@@ -785,6 +779,33 @@
                             }
                             return next;
                         });
+                    }
+                }
+            };
+
+            // ✅ 단가 수정 기능 추가
+            const handleEditProductPrice = (prodName, currentPrice) => {
+                const newPriceStr = prompt(`'${prodName}'의 새로운 단가를 입력하세요.\n(숫자만 입력)`, currentPrice);
+                if (newPriceStr !== null) {
+                    const newPrice = parseInt(newPriceStr.replace(/[^0-9]/g, ''), 10);
+                    if (!isNaN(newPrice)) {
+                        if (confirm(`'${prodName}'의 단가를 ${newPrice.toLocaleString()}원으로 변경하시겠습니까?\n모든 주문의 금액이 재계산됩니다.`)) {
+                            // 1. 주문 내역 업데이트 (가격 재계산)
+                            setOrders(prev => prev.map(o => {
+                                if (o.product === prodName && !o.isCancelled) {
+                                    return { ...o, price: newPrice * o.quantity };
+                                }
+                                return o;
+                            }));
+                            
+                            // 2. 상품 히스토리 업데이트
+                            setProductHistory(prev => ({
+                                ...prev,
+                                [prodName]: newPrice
+                            }));
+                        }
+                    } else {
+                        alert("올바른 숫자를 입력해주세요.");
                     }
                 }
             };
@@ -818,6 +839,16 @@
                                             <Icon name={expandedProduct === product ? "caret-up" : "caret-down"} className="text-gray-400"/>
                                         </div>
                                         <div className="flex items-center gap-2">
+                                            {/* 단가 표시 및 수정 버튼 */}
+                                            <button 
+                                                onClick={() => handleEditProductPrice(product, info.unitPrice)}
+                                                className="flex items-center gap-1 bg-gray-100 hover:bg-yellow-100 text-gray-600 hover:text-yellow-700 px-2 py-0.5 rounded text-xs transition-colors"
+                                                title="단가 수정"
+                                            >
+                                                <Icon name="currency-krw" weight="bold" size={10}/>
+                                                <span className="font-mono">{info.unitPrice.toLocaleString()}</span>
+                                            </button>
+
                                             <button 
                                                 onClick={() => handleEditProductName(product)} 
                                                 className="text-gray-400 hover:text-indigo-600 p-1" 
@@ -1121,8 +1152,6 @@
                 const saved = localStorage.getItem('addressMapping'); 
                 return saved ? JSON.parse(saved) : {}; 
             });
-
-            // ✅ 템플릿 설정 상태 추가
             const [templateConfig, setTemplateConfig] = useState(() => {
                 const saved = localStorage.getItem('templateConfig');
                 return saved ? JSON.parse(saved) : {
@@ -1230,9 +1259,7 @@
             useEffect(() => { localStorage.setItem('sentAddressRequests', JSON.stringify([...sentAddressRequests])); }, [sentAddressRequests]);
             useEffect(() => { localStorage.setItem('deletedDepositIds', JSON.stringify([...deletedDepositIds])); }, [deletedDepositIds]);
             useEffect(() => { localStorage.setItem('checkedOrders', JSON.stringify([...checkedOrders])); }, [checkedOrders]);
-            // ✅ 주소 매핑 저장
             useEffect(() => { localStorage.setItem('addressMapping', JSON.stringify(addressMapping)); }, [addressMapping]);
-            // ✅ 템플릿 설정 저장
             useEffect(() => { localStorage.setItem('templateConfig', JSON.stringify(templateConfig)); }, [templateConfig]);
 
             const tabs = [ 
@@ -1251,7 +1278,7 @@
                     setSentAddressRequests(new Set());
                     setDeletedDepositIds(new Set()); 
                     setCheckedOrders(new Set()); 
-                    setAddressMapping({}); // ✅ 매핑도 초기화
+                    setAddressMapping({}); 
                     
                     localStorage.removeItem('youtubeOrders'); localStorage.removeItem('cardPayments'); 
                     localStorage.removeItem('shippingOverrides'); localStorage.removeItem('matchedDeposits');
@@ -1348,7 +1375,7 @@
                         {activeTab === 'live' && (<LiveTab orders={orders} setOrders={setOrders} productHistory={productHistory} setProductHistory={setProductHistory} quickShipping={quickShipping} setQuickShipping={setQuickShipping} shippingOverrides={shippingOverrides} setShippingOverrides={setShippingOverrides} bankAccount={bankAccount} setBankAccount={setBankAccount} googleScriptUrl={googleScriptUrl} addresses={addresses} setAddresses={setAddresses} cardPayments={cardPayments} setCardPayments={setCardPayments} resetAllStatus={resetAllStatus} matchedDeposits={matchedDeposits} setMatchedDeposits={setMatchedDeposits} depositorNames={depositorNames} setDepositorNames={setDepositorNames} clickedChats={clickedChats} setClickedChats={setClickedChats} openModal={openModal} keywords={keywords} setKeywords={setKeywords} sentAddressRequests={sentAddressRequests} setSentAddressRequests={setSentAddressRequests} deletedDepositIds={deletedDepositIds} setDeletedDepositIds={setDeletedDepositIds} checkedOrders={checkedOrders} setCheckedOrders={setCheckedOrders} addressMapping={addressMapping} setAddressMapping={setAddressMapping} templateConfig={templateConfig} />)}
                         
                         {/* ✅ setProductHistory, setOrders 추가 전달 (발주현황) */}
-                        {activeTab === 'status' && (<OrderStatusTab orders={orders} setOrders={setOrders} setProductHistory={setProductHistory} />)}
+                        {activeTab === 'status' && (<OrderStatusTab orders={orders} setOrders={setOrders} setProductHistory={setProductHistory} productHistory={productHistory} />)}
                         
                         {/* ✅ customerSheetId props 전달 */}
                         {activeTab === 'customer' && (<CustomerTab addresses={addresses} setAddresses={setAddresses} googleScriptUrl={googleScriptUrl} customerSheetId={customerSheetId} openModal={openModal} />)}
