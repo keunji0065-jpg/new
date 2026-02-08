@@ -8,7 +8,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     
-    <title>깔로 주문서 PRO (발주엑셀_텍스트수정)</title>
+    <title>깔로 주문서 PRO (엑셀들여쓰기)</title>
     
     <!-- 라이브러리 로드 -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin="anonymous"></script>
@@ -139,6 +139,7 @@
             );
         };
 
+        // 3. LiveTab
         const LiveTab = ({ orders, setOrders, productHistory, setProductHistory, quickShipping, setQuickShipping, shippingOverrides, setShippingOverrides, bankAccount, googleScriptUrl, addresses, cardPayments, setCardPayments, resetAllStatus, matchedDeposits, setMatchedDeposits, depositorNames, setDepositorNames, clickedChats, setClickedChats, openModal, keywords, setKeywords, sentAddressRequests, setSentAddressRequests, deletedDepositIds, setDeletedDepositIds, checkedOrders, setCheckedOrders, addressMapping, setAddressMapping, templateConfig }) => {
             const [chats, setChats] = useState([]);
             const [serverDeposits, setServerDeposits] = useState([]); 
@@ -169,6 +170,7 @@
                     if (!res.ok) throw new Error(`HTTP 오류 ${res.status}`);
                     const text = await res.text();
                     if (text.trim().startsWith("<!DOCTYPE html") || text.includes("Google Accounts")) { setConnectionStatus(prev => prev.code === 'error_auth' ? prev : { code: 'error_auth', msg: '⚠️ 구글 배포 권한 확인 필요' }); return; }
+                    
                     const data = JSON.parse(text);
                     if (data.chats) {
                         const cleanChats = data.chats.map(chat => ({ ...chat, nickname: String(chat.nickname).replace(/@/g, '').trim() }));
@@ -182,6 +184,7 @@
                     }
                 } catch (e) { console.warn("통신 실패:", e); setConnectionStatus(prev => prev.code === 'error_fetch' ? prev : { code: 'error_fetch', msg: '연결 재시도 중...' }); }
             };
+            
             useEffect(() => { fetchData(); const interval = setInterval(fetchData, 5000); return () => clearInterval(interval); }, [googleScriptUrl]);
 
             const allDeposits = useMemo(() => [...manualDeposits, ...serverDeposits], [manualDeposits, serverDeposits]);
@@ -272,20 +275,8 @@
                     }
                     const newOrder = { id: Date.now(), customer: cleanNick, product: initialProduct, quantity: qty, price: initialPrice, deposit: 0, originalText: content, isCancelled: false };
                     let lastIdx = -1;
-                    for (let i = prev.length - 1; i >= 0; i--) {
-                        if (prev[i].customer === cleanNick) {
-                            lastIdx = i;
-                            break;
-                        }
-                    }
-
-                    if (lastIdx !== -1) {
-                        const next = [...prev];
-                        next.splice(lastIdx + 1, 0, newOrder);
-                        return next;
-                    } else {
-                        return [newOrder, ...prev];
-                    }
+                    for (let i = prev.length - 1; i >= 0; i--) { if (prev[i].customer === cleanNick) { lastIdx = i; break; } }
+                    if (lastIdx !== -1) { const next = [...prev]; next.splice(lastIdx + 1, 0, newOrder); return next; } else { return [newOrder, ...prev]; }
                 });
             };
             
@@ -300,9 +291,7 @@
                         addOrderLogic(nick, '', 1);
                         setTimeout(() => {
                             const userInputs = document.querySelectorAll(`input[data-customer="${nick}"]`);
-                            if (userInputs.length > 0) {
-                                userInputs[userInputs.length - 1].focus();
-                            }
+                            if (userInputs.length > 0) { userInputs[userInputs.length - 1].focus(); }
                         }, 50);
                     }
                 }
@@ -311,37 +300,23 @@
             const handleProductPaste = (e, nick, items, currentIndex) => {
                 const pasteData = e.clipboardData.getData('text');
                 if (!pasteData) return;
-
                 const lines = pasteData.split(/\r\n|\r|\n/).filter(line => line.trim() !== '');
-                
                 if (lines.length > 1) {
                     e.preventDefault(); 
-                    
                     const firstLine = lines[0].trim();
                     setOrders(prev => {
                         const newOrders = [...prev];
                         const targetIndex = newOrders.findIndex(o => o.id === items[currentIndex].id);
                         if (targetIndex === -1) return prev;
-
                         const currentOrder = newOrders[targetIndex];
                         const price1 = productHistory[firstLine] ? currentOrder.quantity * productHistory[firstLine] : currentOrder.price;
                         newOrders[targetIndex] = { ...currentOrder, product: firstLine, price: price1 };
-                        
                         lines.slice(1).forEach((line, i) => {
                             const prodName = line.trim();
                             const unitPrice = productHistory[prodName] || 0;
-                            const newOrder = {
-                                id: Date.now() + i + 1,
-                                customer: nick,
-                                product: prodName,
-                                quantity: 1,
-                                price: unitPrice,
-                                deposit: 0,
-                                isCancelled: false
-                            };
+                            const newOrder = { id: Date.now() + i + 1, customer: nick, product: prodName, quantity: 1, price: unitPrice, deposit: 0, isCancelled: false };
                             newOrders.splice(targetIndex + 1 + i, 0, newOrder);
                         });
-
                         return newOrders;
                     });
                 }
@@ -349,6 +324,7 @@
 
             const handleChatClick = (chat) => { setClickedChats(prev => new Set(prev).add(chat.id)); addOrderLogic(chat.nickname, chat.content, 1, true); };
             const handleManualSubmit = (e) => { e.preventDefault(); if (!manualNick.trim()) return openModal("닉네임을 입력해주세요.", 'alert'); addOrderLogic(manualNick, manualProduct, 1); setManualProduct(''); };
+            
             const handleDepositClick = (deposit) => {
                 const depositId = deposit.id;
                 const currentMatched = matchedDeposits || new Set();
@@ -372,23 +348,9 @@
 
                 const depositNameClean = normalizeString(deposit.name);
                 const uniqueCustomers = [...new Set(orders.map(o => o.customer))];
-                
-                let matchedCustomer = uniqueCustomers.find(c => {
-                    const savedRealName = depositorNames[c] ? normalizeString(depositorNames[c]) : '';
-                    return savedRealName === depositNameClean;
-                });
-
-                if (!matchedCustomer) {
-                    matchedCustomer = uniqueCustomers.find(c => normalizeString(c) === depositNameClean);
-                }
-                
-                if (!matchedCustomer) {
-                    matchedCustomer = uniqueCustomers.find(c => {
-                        const nickClean = normalizeString(c);
-                        if (depositNameClean.length < 2 || nickClean.length < 2) return false;
-                        return nickClean.includes(depositNameClean) || depositNameClean.includes(nickClean);
-                    });
-                }
+                let matchedCustomer = uniqueCustomers.find(c => { const savedRealName = depositorNames[c] ? normalizeString(depositorNames[c]) : ''; return savedRealName === depositNameClean; });
+                if (!matchedCustomer) { matchedCustomer = uniqueCustomers.find(c => normalizeString(c) === depositNameClean); }
+                if (!matchedCustomer) { matchedCustomer = uniqueCustomers.find(c => { const nickClean = normalizeString(c); if (depositNameClean.length < 2 || nickClean.length < 2) return false; return nickClean.includes(depositNameClean) || depositNameClean.includes(nickClean); }); }
 
                 if (matchedCustomer) {
                     if (selectedNick === matchedCustomer) {
@@ -584,7 +546,6 @@
                     <datalist id="product-list">
                         {filteredProductList.map(name => <option key={name} value={name} />)}
                     </datalist>
-                    {/* LiveTab UI: 채팅창, 입금내역, 주문서 */}
                     <div className="w-[30%] flex flex-col bg-white border rounded-lg shadow-sm overflow-hidden">
                         <div className="p-2 bg-indigo-50 border-b flex flex-col gap-2">
                             <div className="font-bold text-indigo-700 flex items-center justify-between"><div className="flex items-center gap-2"><span className="flex items-center gap-1"><Icon name="youtube-logo" weight="fill" className="text-red-600"/> 라이브 댓글</span><button onClick={() => setShowKeywordOnly(!showKeywordOnly)} className={`flex items-center justify-center w-6 h-6 rounded-full transition-all ${showKeywordOnly ? 'bg-blue-600 text-white shadow-sm' : 'bg-white text-gray-400 border border-gray-200 hover:text-blue-500'}`}><Icon name="target" weight={showKeywordOnly ? "fill" : "bold"} size={14} /></button></div><span className="text-xs text-gray-500">{filteredChats.length}건</span></div>
@@ -807,7 +768,7 @@
                     info.customers.forEach(c => {
                         data.push({
                             '구분': '└',
-                            '내용': c.nick,
+                            '내용': `    ${c.nick}`, // ✅ [수정] 닉네임 앞에 4칸 공백 추가
                             '수량': c.qty,
                             '단가': ''
                         });
