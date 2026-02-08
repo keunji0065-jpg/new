@@ -8,7 +8,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     
-    <title>깔로 주문서 PRO (발주단가관리)</title>
+    <title>깔로 주문서 PRO (발주엑셀_텍스트수정)</title>
     
     <!-- 라이브러리 로드 -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin="anonymous"></script>
@@ -113,23 +113,32 @@
         const LoginScreen = ({ onLogin }) => {
             const [password, setPassword] = useState('');
             const [error, setError] = useState(false);
-            const handleSubmit = (e) => { e.preventDefault(); if (password === APP_PASSWORD) { onLogin(); } else { setError(true); setTimeout(() => setError(false), 1000); } };
+            const handleSubmit = (e) => { 
+                e.preventDefault(); 
+                if (password === APP_PASSWORD) { 
+                    onLogin(); 
+                } else { 
+                    setError(true); 
+                    setTimeout(() => setError(false), 1000); 
+                } 
+            };
             return (
                 <div className="flex flex-col items-center justify-center h-screen bg-slate-100 text-slate-700">
                     <div className="bg-white p-8 rounded-2xl shadow-xl w-80 text-center animate-scale-up border border-slate-200">
                         <div className="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4"><Icon name="lock-key" size={32} weight="fill"/></div>
                         <h2 className="text-xl font-bold mb-1 text-slate-800">깔로 주문서 PRO</h2>
-                        <form onSubmit={handleSubmit} className="flex flex-col gap-3 mt-6">
+                        <p className="text-xs text-gray-400 mb-6">접속 권한이 필요합니다.</p>
+                        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
                             <input type="password" placeholder="비밀번호 입력" value={password} onChange={(e) => setPassword(e.target.value)} className={`w-full border rounded-lg px-3 py-2.5 text-sm text-center outline-none transition-all ${error ? 'border-red-500 ring-2 ring-red-100 bg-red-50' : 'focus:border-indigo-500 focus:ring-2 ring-indigo-100'}`} autoFocus />
                             <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-lg shadow-sm transition-colors text-sm">접속하기</button>
                         </form>
                         {error && <p className="text-xs text-red-500 mt-3 font-bold animate-pulse">비밀번호가 일치하지 않습니다.</p>}
                     </div>
+                    <p className="text-[10px] text-gray-400 mt-8">Secure System by Private Builder</p>
                 </div>
             );
         };
 
-        // 3. LiveTab
         const LiveTab = ({ orders, setOrders, productHistory, setProductHistory, quickShipping, setQuickShipping, shippingOverrides, setShippingOverrides, bankAccount, googleScriptUrl, addresses, cardPayments, setCardPayments, resetAllStatus, matchedDeposits, setMatchedDeposits, depositorNames, setDepositorNames, clickedChats, setClickedChats, openModal, keywords, setKeywords, sentAddressRequests, setSentAddressRequests, deletedDepositIds, setDeletedDepositIds, checkedOrders, setCheckedOrders, addressMapping, setAddressMapping, templateConfig }) => {
             const [chats, setChats] = useState([]);
             const [serverDeposits, setServerDeposits] = useState([]); 
@@ -159,19 +168,19 @@
                     const res = await fetch(fetchUrl); 
                     if (!res.ok) throw new Error(`HTTP 오류 ${res.status}`);
                     const text = await res.text();
-                    if (text.trim().startsWith("<!DOCTYPE html")) { setConnectionStatus(prev => prev.code === 'error_auth' ? prev : { code: 'error_auth', msg: '⚠️ 구글 배포 권한 확인 필요' }); return; }
+                    if (text.trim().startsWith("<!DOCTYPE html") || text.includes("Google Accounts")) { setConnectionStatus(prev => prev.code === 'error_auth' ? prev : { code: 'error_auth', msg: '⚠️ 구글 배포 권한 확인 필요' }); return; }
                     const data = JSON.parse(text);
                     if (data.chats) {
                         const cleanChats = data.chats.map(chat => ({ ...chat, nickname: String(chat.nickname).replace(/@/g, '').trim() }));
                         setChats(prev => JSON.stringify(prev) !== JSON.stringify(cleanChats) ? cleanChats : prev);
-                        if (cleanChats.length === 0 && (!data.deposits || data.deposits.length === 0)) { setConnectionStatus(prev => prev.code === 'warning_empty' ? prev : { code: 'warning_empty', msg: '데이터 0건' }); } 
+                        if (cleanChats.length === 0 && (!data.deposits || data.deposits.length === 0)) { setConnectionStatus(prev => prev.code === 'warning_empty' ? prev : { code: 'warning_empty', msg: '데이터 0건 (연결됨)' }); } 
                         else { setConnectionStatus(prev => prev.code === 'success' ? prev : { code: 'success', msg: '🟢 연결 성공' }); }
                     }
                     if (data.deposits) {
                         const stableDeposits = data.deposits.map((d, i) => ({ ...d, id: d.uid || `dep_${d.name}_${d.amount}_${i}`, source: 'server' }));
                         setServerDeposits(prev => JSON.stringify(prev) !== JSON.stringify(stableDeposits) ? stableDeposits : prev);
                     }
-                } catch (e) { setConnectionStatus(prev => prev.code === 'error_fetch' ? prev : { code: 'error_fetch', msg: '연결 재시도 중...' }); }
+                } catch (e) { console.warn("통신 실패:", e); setConnectionStatus(prev => prev.code === 'error_fetch' ? prev : { code: 'error_fetch', msg: '연결 재시도 중...' }); }
             };
             useEffect(() => { fetchData(); const interval = setInterval(fetchData, 5000); return () => clearInterval(interval); }, [googleScriptUrl]);
 
@@ -203,7 +212,11 @@
             };
             const handleAddressUnmapping = (orderNick) => {
                  if (confirm(`'${orderNick}'님의 주소 연결을 해제하시겠습니까?`)) {
-                     setAddressMapping(prev => { const next = { ...prev }; delete next[orderNick]; return next; });
+                     setAddressMapping(prev => { 
+                        const next = { ...prev }; 
+                        delete next[orderNick]; 
+                        return next; 
+                     });
                  }
             };
 
@@ -259,8 +272,20 @@
                     }
                     const newOrder = { id: Date.now(), customer: cleanNick, product: initialProduct, quantity: qty, price: initialPrice, deposit: 0, originalText: content, isCancelled: false };
                     let lastIdx = -1;
-                    for (let i = prev.length - 1; i >= 0; i--) { if (prev[i].customer === cleanNick) { lastIdx = i; break; } }
-                    if (lastIdx !== -1) { const next = [...prev]; next.splice(lastIdx + 1, 0, newOrder); return next; } else { return [newOrder, ...prev]; }
+                    for (let i = prev.length - 1; i >= 0; i--) {
+                        if (prev[i].customer === cleanNick) {
+                            lastIdx = i;
+                            break;
+                        }
+                    }
+
+                    if (lastIdx !== -1) {
+                        const next = [...prev];
+                        next.splice(lastIdx + 1, 0, newOrder);
+                        return next;
+                    } else {
+                        return [newOrder, ...prev];
+                    }
                 });
             };
             
@@ -275,7 +300,9 @@
                         addOrderLogic(nick, '', 1);
                         setTimeout(() => {
                             const userInputs = document.querySelectorAll(`input[data-customer="${nick}"]`);
-                            if (userInputs.length > 0) { userInputs[userInputs.length - 1].focus(); }
+                            if (userInputs.length > 0) {
+                                userInputs[userInputs.length - 1].focus();
+                            }
                         }, 50);
                     }
                 }
@@ -284,23 +311,37 @@
             const handleProductPaste = (e, nick, items, currentIndex) => {
                 const pasteData = e.clipboardData.getData('text');
                 if (!pasteData) return;
+
                 const lines = pasteData.split(/\r\n|\r|\n/).filter(line => line.trim() !== '');
+                
                 if (lines.length > 1) {
                     e.preventDefault(); 
+                    
                     const firstLine = lines[0].trim();
                     setOrders(prev => {
                         const newOrders = [...prev];
                         const targetIndex = newOrders.findIndex(o => o.id === items[currentIndex].id);
                         if (targetIndex === -1) return prev;
+
                         const currentOrder = newOrders[targetIndex];
                         const price1 = productHistory[firstLine] ? currentOrder.quantity * productHistory[firstLine] : currentOrder.price;
                         newOrders[targetIndex] = { ...currentOrder, product: firstLine, price: price1 };
+                        
                         lines.slice(1).forEach((line, i) => {
                             const prodName = line.trim();
                             const unitPrice = productHistory[prodName] || 0;
-                            const newOrder = { id: Date.now() + i + 1, customer: nick, product: prodName, quantity: 1, price: unitPrice, deposit: 0, isCancelled: false };
+                            const newOrder = {
+                                id: Date.now() + i + 1,
+                                customer: nick,
+                                product: prodName,
+                                quantity: 1,
+                                price: unitPrice,
+                                deposit: 0,
+                                isCancelled: false
+                            };
                             newOrders.splice(targetIndex + 1 + i, 0, newOrder);
                         });
+
                         return newOrders;
                     });
                 }
@@ -308,7 +349,6 @@
 
             const handleChatClick = (chat) => { setClickedChats(prev => new Set(prev).add(chat.id)); addOrderLogic(chat.nickname, chat.content, 1, true); };
             const handleManualSubmit = (e) => { e.preventDefault(); if (!manualNick.trim()) return openModal("닉네임을 입력해주세요.", 'alert'); addOrderLogic(manualNick, manualProduct, 1); setManualProduct(''); };
-            
             const handleDepositClick = (deposit) => {
                 const depositId = deposit.id;
                 const currentMatched = matchedDeposits || new Set();
@@ -332,9 +372,23 @@
 
                 const depositNameClean = normalizeString(deposit.name);
                 const uniqueCustomers = [...new Set(orders.map(o => o.customer))];
-                let matchedCustomer = uniqueCustomers.find(c => { const savedRealName = depositorNames[c] ? normalizeString(depositorNames[c]) : ''; return savedRealName === depositNameClean; });
-                if (!matchedCustomer) { matchedCustomer = uniqueCustomers.find(c => normalizeString(c) === depositNameClean); }
-                if (!matchedCustomer) { matchedCustomer = uniqueCustomers.find(c => { const nickClean = normalizeString(c); if (depositNameClean.length < 2 || nickClean.length < 2) return false; return nickClean.includes(depositNameClean) || depositNameClean.includes(nickClean); }); }
+                
+                let matchedCustomer = uniqueCustomers.find(c => {
+                    const savedRealName = depositorNames[c] ? normalizeString(depositorNames[c]) : '';
+                    return savedRealName === depositNameClean;
+                });
+
+                if (!matchedCustomer) {
+                    matchedCustomer = uniqueCustomers.find(c => normalizeString(c) === depositNameClean);
+                }
+                
+                if (!matchedCustomer) {
+                    matchedCustomer = uniqueCustomers.find(c => {
+                        const nickClean = normalizeString(c);
+                        if (depositNameClean.length < 2 || nickClean.length < 2) return false;
+                        return nickClean.includes(depositNameClean) || depositNameClean.includes(nickClean);
+                    });
+                }
 
                 if (matchedCustomer) {
                     if (selectedNick === matchedCustomer) {
@@ -530,6 +584,7 @@
                     <datalist id="product-list">
                         {filteredProductList.map(name => <option key={name} value={name} />)}
                     </datalist>
+                    {/* LiveTab UI: 채팅창, 입금내역, 주문서 */}
                     <div className="w-[30%] flex flex-col bg-white border rounded-lg shadow-sm overflow-hidden">
                         <div className="p-2 bg-indigo-50 border-b flex flex-col gap-2">
                             <div className="font-bold text-indigo-700 flex items-center justify-between"><div className="flex items-center gap-2"><span className="flex items-center gap-1"><Icon name="youtube-logo" weight="fill" className="text-red-600"/> 라이브 댓글</span><button onClick={() => setShowKeywordOnly(!showKeywordOnly)} className={`flex items-center justify-center w-6 h-6 rounded-full transition-all ${showKeywordOnly ? 'bg-blue-600 text-white shadow-sm' : 'bg-white text-gray-400 border border-gray-200 hover:text-blue-500'}`}><Icon name="target" weight={showKeywordOnly ? "fill" : "bold"} size={14} /></button></div><span className="text-xs text-gray-500">{filteredChats.length}건</span></div>
@@ -744,19 +799,17 @@
                 let data = [];
                 productStats.forEach(([product, info]) => {
                     data.push({
-                        '구분': '📦 상품',
+                        '구분': '📦',
                         '내용': product,
-                        '단가': info.unitPrice, 
                         '수량': info.totalQty,
-                        '총액': info.unitPrice * info.totalQty
+                        '단가': info.unitPrice
                     });
                     info.customers.forEach(c => {
                         data.push({
-                            '구분': '└ 주문자',
+                            '구분': '└',
                             '내용': c.nick,
-                            '단가': '-',
                             '수량': c.qty,
-                            '총액': '-'
+                            '단가': ''
                         });
                     });
                     data.push({});
@@ -1126,7 +1179,6 @@
             );
         };
 
-        // --- 8. App 컴포넌트 ---
         const App = () => {
             const [isLoggedIn, setIsLoggedIn] = useState(false);
             const [orders, setOrders] = useState(() => JSON.parse(localStorage.getItem('youtubeOrders')) || []);
@@ -1144,14 +1196,18 @@
             const [keywords, setKeywords] = useState(() => { const saved = localStorage.getItem('keywords'); return saved ? new Set(JSON.parse(saved)) : new Set(); });
             const [sentAddressRequests, setSentAddressRequests] = useState(() => { const saved = localStorage.getItem('sentAddressRequests'); return saved ? new Set(JSON.parse(saved)) : new Set(); });
             const [deletedDepositIds, setDeletedDepositIds] = useState(() => { const saved = localStorage.getItem('deletedDepositIds'); return saved ? new Set(JSON.parse(saved)) : new Set(); });
+            // ✅ [추가] 주문 확인(체크) 상태 관리
             const [checkedOrders, setCheckedOrders] = useState(() => { 
                 const saved = localStorage.getItem('checkedOrders'); 
                 return saved ? new Set(JSON.parse(saved)) : new Set(); 
             });
+            // ✅ [추가] 주소 매핑 상태 (localStorage 연동)
             const [addressMapping, setAddressMapping] = useState(() => { 
                 const saved = localStorage.getItem('addressMapping'); 
                 return saved ? JSON.parse(saved) : {}; 
             });
+
+            // ✅ 템플릿 설정 상태 추가
             const [templateConfig, setTemplateConfig] = useState(() => {
                 const saved = localStorage.getItem('templateConfig');
                 return saved ? JSON.parse(saved) : {
@@ -1259,7 +1315,9 @@
             useEffect(() => { localStorage.setItem('sentAddressRequests', JSON.stringify([...sentAddressRequests])); }, [sentAddressRequests]);
             useEffect(() => { localStorage.setItem('deletedDepositIds', JSON.stringify([...deletedDepositIds])); }, [deletedDepositIds]);
             useEffect(() => { localStorage.setItem('checkedOrders', JSON.stringify([...checkedOrders])); }, [checkedOrders]);
+            // ✅ 주소 매핑 저장
             useEffect(() => { localStorage.setItem('addressMapping', JSON.stringify(addressMapping)); }, [addressMapping]);
+            // ✅ 템플릿 설정 저장
             useEffect(() => { localStorage.setItem('templateConfig', JSON.stringify(templateConfig)); }, [templateConfig]);
 
             const tabs = [ 
@@ -1278,7 +1336,7 @@
                     setSentAddressRequests(new Set());
                     setDeletedDepositIds(new Set()); 
                     setCheckedOrders(new Set()); 
-                    setAddressMapping({}); 
+                    setAddressMapping({}); // ✅ 매핑도 초기화
                     
                     localStorage.removeItem('youtubeOrders'); localStorage.removeItem('cardPayments'); 
                     localStorage.removeItem('shippingOverrides'); localStorage.removeItem('matchedDeposits');
@@ -1341,7 +1399,20 @@
                                     <div className="space-y-3">
                                         <div>
                                             <label className="block text-[10px] font-bold text-gray-500 mb-1">닉네임 장식 이모지</label>
-                                            <input type="text" value={templateConfig.emoji} onChange={(e)=>setTemplateConfig({...templateConfig, emoji: e.target.value})} className="w-full border rounded px-2 py-1.5 text-sm" />
+                                            <div className="flex gap-1 mb-1">
+                                                <input type="text" value={templateConfig.emoji} onChange={(e)=>setTemplateConfig({...templateConfig, emoji: e.target.value})} className="flex-1 border rounded px-2 py-1.5 text-sm" />
+                                            </div>
+                                            <div className="flex flex-wrap gap-1 bg-slate-50 p-1.5 rounded border border-slate-100">
+                                                {["💙", "💖", "💛", "💚", "💜", "🤍", "⭐", "🌟", "✨", "🌸", "🌼", "🍀", "✅", "🎁", "📢", "🌈", "🔥", "💎"].map(em => (
+                                                    <button 
+                                                        key={em} 
+                                                        onClick={() => setTemplateConfig({...templateConfig, emoji: em})}
+                                                        className="w-5 h-5 flex items-center justify-center hover:bg-white rounded hover:shadow-sm transition-all text-xs"
+                                                    >
+                                                        {em}
+                                                    </button>
+                                                ))}
+                                            </div>
                                         </div>
                                         <div>
                                             <label className="block text-[10px] font-bold text-gray-500 mb-1">완납 확인 메시지</label>
