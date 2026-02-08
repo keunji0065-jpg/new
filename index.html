@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>깔로 주문서 PRO (최종완성)</title>
+    <title>깔로 주문서 PRO (최종완성_주소안내수정)</title>
     
     <!-- 라이브러리 로드 -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin="anonymous"></script>
@@ -53,11 +53,12 @@
         const DEFAULT_GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx-xAIb3GT5gRO69jwJu_wROo-2UuozJ8fY-MAeuEtllmAIbu_J-Uh5oPX71YJ9Omnhbw/exec";
         const FIXED_BANK_ACCOUNT = "카카오뱅크 김선정\n7942 18 01611";
         const DEFAULT_CUSTOMER_SHEET_ID = "1zlL6R8iCy-6ZRMqj6dbefhkwSyRzHibDYBNJLmE35bM";
+        // 🔒 [보안] 접속 비밀번호
         const APP_PASSWORD = "003637";
         
         const Icon = ({ name, className="", weight="regular", size }) => <i className={`ph ph-${name} ${className}`} data-phosphor-icon-weight={weight} style={{fontSize: size}}></i>;
         const normalizeString = (str) => String(str || '').replace(/[\s\(\)\[\]\{\}\-\_\.\,\/]/g, '').toLowerCase();
-        
+
         const downloadExcel = (data, fileName) => {
             const ws = XLSX.utils.json_to_sheet(data);
             const wb = XLSX.utils.book_new();
@@ -412,7 +413,21 @@
                 let msg = `💙 ${nick} 님 💙\n\n\n${itemListText}\n배송비 ${currentShipping.toLocaleString()}원\n\n총 주문금액 ${grandTotal.toLocaleString()}원\n------------------\n`;
                 if (isCard) { const cardBase = Math.abs(balance); if (depositTotal > 0) msg += `[입금확인]\n${depositTotal.toLocaleString()}원\n\n`; msg += `[카드결제]\n금액 ${cardBase.toLocaleString()}원\n10% ${(cardBase * 0.1).toLocaleString()}원\n👉총 ${(cardBase * 1.1).toLocaleString()}원 예정\n\n핸드폰번호 남겨주세요🌸\n------------------\n\n`; } 
                 else { const isPaid = (balance <= 0) && (grandTotal >= 0) && (activeItems.length > 0); if (depositTotal > 0) msg += `[입금확인]\n${depositTotal.toLocaleString()}원\n------------------\n\n`; if (isPaid) msg += `완납 확인! 감사합니다 😍\n------------------\n\n`; else msg += `[미입금]\n총 입금하실 금액\n👉 ${(balance > 0 ? balance : 0).toLocaleString()}원 \n\n${FIXED_BANK_ACCOUNT}\n입금 부탁드립니다 🙏\n------------------\n\n`; }
-                if (!addr) { if (!sentAddressRequests.has(nick)) { msg += `방송마다 1회\n하단의 주문서(배송지입력) 필수!!\n\n이미 참여한 설문 일 경우\n▫ 답변 수정하기 \n▫ 또는 설문 추가 참여\n\n미입력이 많아 계속 안내합니다. \n양해부탁드립니다.`; setSentAddressRequests(prev => new Set(prev).add(nick)); } }
+                
+                // ✅ [수정] 주소 유무에 따른 안내 메시지
+                if (addr) {
+                    msg += `[배송지 확인]\n`;
+                    msg += `성함: ${addr.realname}\n`;
+                    msg += `연락처: ${addr.phone}\n`;
+                    msg += `주소: ${addr.address} ${addr.zipcode ? `(${addr.zipcode})` : ''}\n`;
+                    if(addr.memo) msg += `메모: ${addr.memo}\n`;
+                    msg += `\n※ 배송지 변경 시 채팅으로 변경할 주소를 남겨주세요!`;
+                } else {
+                    if (!sentAddressRequests.has(nick)) { 
+                        msg += `방송마다 1회\n하단의 주문서(배송지입력) 필수!!\n\n이미 참여한 설문 일 경우\n▫ 답변 수정하기 \n▫ 또는 설문 추가 참여\n\n미입력이 많아 계속 안내합니다. \n양해부탁드립니다.`; 
+                        setSentAddressRequests(prev => new Set(prev).add(nick)); 
+                    } 
+                }
 
                 const textArea = document.createElement("textarea"); textArea.value = msg; document.body.appendChild(textArea); textArea.select();
                 try { document.execCommand('copy'); setCopyStatus(prev => ({ ...prev, [nick]: true })); setTimeout(() => { setCopyStatus(prev => ({ ...prev, [nick]: false })); }, 2000); } catch (err) { openModal('복사 실패', 'alert'); }
@@ -505,9 +520,7 @@
 
             return (
                 <div className="flex h-full gap-2 p-2 overflow-hidden bg-gray-50 text-slate-800">
-                    <datalist id="product-list">
-                        {filteredProductList.map(name => <option key={name} value={name} />)}
-                    </datalist>
+                    <datalist id="product-list">{filteredProductList.map(name => <option key={name} value={name} />)}</datalist>
                     <div className="w-[30%] flex flex-col bg-white border rounded-lg shadow-sm overflow-hidden">
                         <div className="p-2 bg-indigo-50 border-b flex flex-col gap-2">
                             <div className="font-bold text-indigo-700 flex items-center justify-between"><div className="flex items-center gap-2"><span className="flex items-center gap-1"><Icon name="youtube-logo" weight="fill" className="text-red-600"/> 라이브 댓글</span><button onClick={() => setShowKeywordOnly(!showKeywordOnly)} className={`flex items-center justify-center w-6 h-6 rounded-full transition-all ${showKeywordOnly ? 'bg-blue-600 text-white shadow-sm' : 'bg-white text-gray-400 border border-gray-200 hover:text-blue-500'}`}><Icon name="target" weight={showKeywordOnly ? "fill" : "bold"} size={14} /></button></div><span className="text-xs text-gray-500">{filteredChats.length}건</span></div>
@@ -694,7 +707,7 @@
             );
         };
 
-        // --- 4. OrderStatusTab (발주현황 탭) ---
+        // --- OrderStatusTab (New) ---
         const OrderStatusTab = ({ orders }) => {
             const [expandedProduct, setExpandedProduct] = useState(null);
 
@@ -842,6 +855,7 @@
                     <div className="flex justify-between items-center mb-4 pb-4 border-b">
                         <h2 className="text-xl font-bold flex items-center gap-2"><Icon name="address-book" weight="fill" className="text-indigo-600"/> 고객 주소록 관리 <span className="text-sm font-normal text-gray-500">({addresses.length}명)</span></h2>
                         <div className="flex gap-2">
+                             {/* ID 표시 */}
                              {customerSheetId && <span className="text-[10px] text-gray-400 self-center mr-2">ID연동됨</span>}
                             <button onClick={handleCloudSave} className="bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded text-sm font-bold flex items-center gap-1 shadow-sm"><Icon name="cloud-arrow-up" weight="fill"/> 서버 저장</button>
                             <button onClick={handleCloudLoad} className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded text-sm font-bold flex items-center gap-1 shadow-sm"><Icon name="cloud-arrow-down" weight="fill"/> 서버 로드</button>
@@ -1029,6 +1043,7 @@
                 const saved = localStorage.getItem('checkedOrders'); 
                 return saved ? new Set(JSON.parse(saved)) : new Set(); 
             });
+            // ✅ [추가] 주소 매핑 상태 (localStorage 연동)
             const [addressMapping, setAddressMapping] = useState(() => { 
                 const saved = localStorage.getItem('addressMapping'); 
                 return saved ? JSON.parse(saved) : {}; 
@@ -1128,7 +1143,6 @@
             useEffect(() => { localStorage.setItem('sentAddressRequests', JSON.stringify([...sentAddressRequests])); }, [sentAddressRequests]);
             useEffect(() => { localStorage.setItem('deletedDepositIds', JSON.stringify([...deletedDepositIds])); }, [deletedDepositIds]);
             useEffect(() => { localStorage.setItem('checkedOrders', JSON.stringify([...checkedOrders])); }, [checkedOrders]);
-            // ✅ 주소 매핑 저장
             useEffect(() => { localStorage.setItem('addressMapping', JSON.stringify(addressMapping)); }, [addressMapping]);
 
             const tabs = [ 
@@ -1213,10 +1227,14 @@
                         </div>
                     )}
                     <main className="flex-1 overflow-hidden bg-gray-100 p-2 relative">
+                        {/* ✅ addressMapping, setAddressMapping 추가 전달 */}
                         {activeTab === 'live' && (<LiveTab orders={orders} setOrders={setOrders} productHistory={productHistory} setProductHistory={setProductHistory} quickShipping={quickShipping} setQuickShipping={setQuickShipping} shippingOverrides={shippingOverrides} setShippingOverrides={setShippingOverrides} bankAccount={bankAccount} setBankAccount={setBankAccount} googleScriptUrl={googleScriptUrl} addresses={addresses} setAddresses={setAddresses} cardPayments={cardPayments} setCardPayments={setCardPayments} resetAllStatus={resetAllStatus} matchedDeposits={matchedDeposits} setMatchedDeposits={setMatchedDeposits} depositorNames={depositorNames} setDepositorNames={setDepositorNames} clickedChats={clickedChats} setClickedChats={setClickedChats} openModal={openModal} keywords={keywords} setKeywords={setKeywords} sentAddressRequests={sentAddressRequests} setSentAddressRequests={setSentAddressRequests} deletedDepositIds={deletedDepositIds} setDeletedDepositIds={setDeletedDepositIds} checkedOrders={checkedOrders} setCheckedOrders={setCheckedOrders} addressMapping={addressMapping} setAddressMapping={setAddressMapping} />)}
+                        {/* ✅ [추가] 발주현황 탭 */}
                         {activeTab === 'status' && (<OrderStatusTab orders={orders} />)}
+                        {/* ✅ customerSheetId props 전달 */}
                         {activeTab === 'customer' && (<CustomerTab addresses={addresses} setAddresses={setAddresses} googleScriptUrl={googleScriptUrl} customerSheetId={customerSheetId} openModal={openModal} />)}
                         {activeTab === 'cs' && (<CSTab csData={csData} setCsData={setCsData} openModal={openModal} />)}
+                        {/* ✅ handleExportBackup, handleImportBackup, addressMapping 전달 */}
                         {activeTab === 'manage' && (<OrderManagementTab orders={orders} shippingOverrides={shippingOverrides} quickShipping={quickShipping} addresses={addresses} handleExportBackup={handleExportBackup} handleImportBackup={handleImportBackup} addressMapping={addressMapping} />)}
                     </main>
                 </div>
