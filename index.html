@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>깔로 주문서 PRO (최종통합)</title>
+    <title>깔로 주문서 PRO (최종완성)</title>
     
     <!-- 라이브러리 로드 -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin="anonymous"></script>
@@ -53,11 +53,11 @@
         const DEFAULT_GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx-xAIb3GT5gRO69jwJu_wROo-2UuozJ8fY-MAeuEtllmAIbu_J-Uh5oPX71YJ9Omnhbw/exec";
         const FIXED_BANK_ACCOUNT = "카카오뱅크 김선정\n7942 18 01611";
         const DEFAULT_CUSTOMER_SHEET_ID = "1zlL6R8iCy-6ZRMqj6dbefhkwSyRzHibDYBNJLmE35bM";
-        // 🔒 [보안] 접속 비밀번호
         const APP_PASSWORD = "003637";
         
         const Icon = ({ name, className="", weight="regular", size }) => <i className={`ph ph-${name} ${className}`} data-phosphor-icon-weight={weight} style={{fontSize: size}}></i>;
-
+        const normalizeString = (str) => String(str || '').replace(/[\s\(\)\[\]\{\}\-\_\.\,\/]/g, '').toLowerCase();
+        
         const downloadExcel = (data, fileName) => {
             const ws = XLSX.utils.json_to_sheet(data);
             const wb = XLSX.utils.book_new();
@@ -65,7 +65,7 @@
             XLSX.writeFile(wb, `${fileName}_${new Date().toLocaleDateString()}.xlsx`);
         };
 
-        // --- 공용 컴포넌트 ---
+        // 1. 모달 컴포넌트
         const Modal = ({ isOpen, type, message, onConfirm, onCancel, initialValue }) => {
             const [inputValue, setInputValue] = useState(initialValue || '');
             const inputRef = useRef(null);
@@ -103,36 +103,27 @@
             );
         };
 
+        // 2. 로그인 화면 컴포넌트
         const LoginScreen = ({ onLogin }) => {
             const [password, setPassword] = useState('');
             const [error, setError] = useState(false);
-            const handleSubmit = (e) => { 
-                e.preventDefault(); 
-                if (password === APP_PASSWORD) { 
-                    onLogin(); 
-                } else { 
-                    setError(true); 
-                    setTimeout(() => setError(false), 1000); 
-                } 
-            };
+            const handleSubmit = (e) => { e.preventDefault(); if (password === APP_PASSWORD) { onLogin(); } else { setError(true); setTimeout(() => setError(false), 1000); } };
             return (
                 <div className="flex flex-col items-center justify-center h-screen bg-slate-100 text-slate-700">
                     <div className="bg-white p-8 rounded-2xl shadow-xl w-80 text-center animate-scale-up border border-slate-200">
                         <div className="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4"><Icon name="lock-key" size={32} weight="fill"/></div>
                         <h2 className="text-xl font-bold mb-1 text-slate-800">깔로 주문서 PRO</h2>
-                        <p className="text-xs text-gray-400 mb-6">접속 권한이 필요합니다.</p>
-                        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+                        <form onSubmit={handleSubmit} className="flex flex-col gap-3 mt-6">
                             <input type="password" placeholder="비밀번호 입력" value={password} onChange={(e) => setPassword(e.target.value)} className={`w-full border rounded-lg px-3 py-2.5 text-sm text-center outline-none transition-all ${error ? 'border-red-500 ring-2 ring-red-100 bg-red-50' : 'focus:border-indigo-500 focus:ring-2 ring-indigo-100'}`} autoFocus />
                             <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-lg shadow-sm transition-colors text-sm">접속하기</button>
                         </form>
                         {error && <p className="text-xs text-red-500 mt-3 font-bold animate-pulse">비밀번호가 일치하지 않습니다.</p>}
                     </div>
-                    <p className="text-[10px] text-gray-400 mt-8">Secure System by Private Builder</p>
                 </div>
             );
         };
 
-        // --- LiveTab ---
+        // 3. LiveTab
         const LiveTab = ({ orders, setOrders, productHistory, setProductHistory, quickShipping, setQuickShipping, shippingOverrides, setShippingOverrides, bankAccount, googleScriptUrl, addresses, cardPayments, setCardPayments, resetAllStatus, matchedDeposits, setMatchedDeposits, depositorNames, setDepositorNames, clickedChats, setClickedChats, openModal, keywords, setKeywords, sentAddressRequests, setSentAddressRequests, deletedDepositIds, setDeletedDepositIds, checkedOrders, setCheckedOrders, addressMapping, setAddressMapping }) => {
             const [chats, setChats] = useState([]);
             const [serverDeposits, setServerDeposits] = useState([]); 
@@ -162,37 +153,24 @@
                     const res = await fetch(fetchUrl); 
                     if (!res.ok) throw new Error(`HTTP 오류 ${res.status}`);
                     const text = await res.text();
-                    if (text.trim().startsWith("<!DOCTYPE html") || text.includes("Google Accounts")) { setConnectionStatus(prev => prev.code === 'error_auth' ? prev : { code: 'error_auth', msg: '⚠️ 구글 배포 권한 확인 필요' }); return; }
-                    
+                    if (text.trim().startsWith("<!DOCTYPE html")) { setConnectionStatus(prev => prev.code === 'error_auth' ? prev : { code: 'error_auth', msg: '⚠️ 구글 배포 권한 확인 필요' }); return; }
                     const data = JSON.parse(text);
                     if (data.chats) {
-                        const cleanChats = data.chats.map(chat => ({
-                            ...chat,
-                            nickname: String(chat.nickname).replace(/@/g, '').trim()
-                        }));
+                        const cleanChats = data.chats.map(chat => ({ ...chat, nickname: String(chat.nickname).replace(/@/g, '').trim() }));
                         setChats(prev => JSON.stringify(prev) !== JSON.stringify(cleanChats) ? cleanChats : prev);
-                        if (cleanChats.length === 0 && (!data.deposits || data.deposits.length === 0)) { setConnectionStatus(prev => prev.code === 'warning_empty' ? prev : { code: 'warning_empty', msg: '데이터 0건 (연결됨)' }); } 
+                        if (cleanChats.length === 0 && (!data.deposits || data.deposits.length === 0)) { setConnectionStatus(prev => prev.code === 'warning_empty' ? prev : { code: 'warning_empty', msg: '데이터 0건' }); } 
                         else { setConnectionStatus(prev => prev.code === 'success' ? prev : { code: 'success', msg: '🟢 연결 성공' }); }
                     }
                     if (data.deposits) {
-                        const stableDeposits = data.deposits.map((d, i) => ({
-                            ...d,
-                            id: d.uid || `dep_${d.name}_${d.amount}_${i}`,
-                            source: 'server'
-                        }));
+                        const stableDeposits = data.deposits.map((d, i) => ({ ...d, id: d.uid || `dep_${d.name}_${d.amount}_${i}`, source: 'server' }));
                         setServerDeposits(prev => JSON.stringify(prev) !== JSON.stringify(stableDeposits) ? stableDeposits : prev);
                     }
-                } catch (e) { console.warn("통신 실패:", e); setConnectionStatus(prev => prev.code === 'error_fetch' ? prev : { code: 'error_fetch', msg: '연결 재시도 중...' }); }
+                } catch (e) { setConnectionStatus(prev => prev.code === 'error_fetch' ? prev : { code: 'error_fetch', msg: '연결 재시도 중...' }); }
             };
-            
             useEffect(() => { fetchData(); const interval = setInterval(fetchData, 5000); return () => clearInterval(interval); }, [googleScriptUrl]);
 
             const allDeposits = useMemo(() => [...manualDeposits, ...serverDeposits], [manualDeposits, serverDeposits]);
             
-            // 닉네임 정규화 함수
-            const normalizeString = (str) => String(str || '').replace(/[\s\(\)\[\]\{\}\-\_\.\,\/]/g, '').toLowerCase();
-
-            // 주소 찾기
             const findAddress = (nick) => {
                 if (addressMapping[nick]) {
                     const mappedNick = addressMapping[nick];
@@ -202,7 +180,6 @@
                 return addresses.find(a => normalizeString(a.nickname) === nickNorm);
             };
 
-            // 주소 추천
             const findAddressSuggestions = (nick) => {
                 if (!nick) return [];
                 const cleanNick = normalizeString(nick);
@@ -349,23 +326,9 @@
 
                 const depositNameClean = normalizeString(deposit.name);
                 const uniqueCustomers = [...new Set(orders.map(o => o.customer))];
-                
-                let matchedCustomer = uniqueCustomers.find(c => {
-                    const savedRealName = depositorNames[c] ? normalizeString(depositorNames[c]) : '';
-                    return savedRealName === depositNameClean;
-                });
-
-                if (!matchedCustomer) {
-                    matchedCustomer = uniqueCustomers.find(c => normalizeString(c) === depositNameClean);
-                }
-                
-                if (!matchedCustomer) {
-                    matchedCustomer = uniqueCustomers.find(c => {
-                        const nickClean = normalizeString(c);
-                        if (depositNameClean.length < 2 || nickClean.length < 2) return false;
-                        return nickClean.includes(depositNameClean) || depositNameClean.includes(nickClean);
-                    });
-                }
+                let matchedCustomer = uniqueCustomers.find(c => { const savedRealName = depositorNames[c] ? normalizeString(depositorNames[c]) : ''; return savedRealName === depositNameClean; });
+                if (!matchedCustomer) { matchedCustomer = uniqueCustomers.find(c => normalizeString(c) === depositNameClean); }
+                if (!matchedCustomer) { matchedCustomer = uniqueCustomers.find(c => { const nickClean = normalizeString(c); if (depositNameClean.length < 2 || nickClean.length < 2) return false; return nickClean.includes(depositNameClean) || depositNameClean.includes(nickClean); }); }
 
                 if (matchedCustomer) {
                     if (selectedNick === matchedCustomer) {
@@ -482,22 +445,16 @@
                         
                         const getScore = (val, target) => { 
                             if (!target || !val) return 10;
-                            
                             const v = normalizeString(val);
                             const t = normalizeString(target);
-
                             if (v === t) return 0; 
                             if (v.startsWith(t) || t.startsWith(v)) return 1; 
                             if (v.includes(t) || t.includes(v)) return 2;
-                            for (let i = 0; i < t.length - 1; i++) {
-                                if (v.includes(t.substring(i, i + 2))) return 3;
-                            }
+                            for (let i = 0; i < t.length - 1; i++) { if (v.includes(t.substring(i, i + 2))) return 3; }
                             return 10; 
                         };
-                        
                         const scoreA = Math.min(getScore(nameA, targetNick), getScore(nameA, targetReal));
                         const scoreB = Math.min(getScore(nameB, targetNick), getScore(nameB, targetReal));
-                        
                         if (scoreA !== scoreB) return scoreA - scoreB;
                     }
                     return 0; 
@@ -521,7 +478,6 @@
                 orders.forEach(o => { if (!groups[o.customer]) groups[o.customer] = []; groups[o.customer].push(o); });
                 
                 let groupedArray = Object.entries(groups);
-                
                 groupedArray.sort((a, b) => {
                     const maxTimeA = a[1].length > 0 ? Math.max(...a[1].map(item => item.id)) : 0;
                     const maxTimeB = b[1].length > 0 ? Math.max(...b[1].map(item => item.id)) : 0;
@@ -537,9 +493,7 @@
                     const depositTotal = items.reduce((sum, i) => sum + (i.deposit || 0), 0); 
                     const grandTotal = productTotal + (activeItems.length > 0 ? currentShipping : 0); 
                     const balance = grandTotal - depositTotal; 
-                    
                     const isPaid = (balance <= 0) && (grandTotal >= 0) && (activeItems.length > 0);
-                    
                     if (filterStatus === 'unpaid') { if (isCard || isPaid) return false; } 
                     if (filterStatus === 'paid') { if (!isPaid && !isCard) return false; } 
                     return true; 
@@ -740,6 +694,74 @@
             );
         };
 
+        // --- 4. OrderStatusTab (발주현황 탭) ---
+        const OrderStatusTab = ({ orders }) => {
+            const [expandedProduct, setExpandedProduct] = useState(null);
+
+            const productStats = useMemo(() => {
+                const stats = {};
+                orders.filter(o => !o.isCancelled).forEach(o => {
+                    const prodName = o.product || '(상품명 없음)';
+                    if (!stats[prodName]) {
+                        stats[prodName] = { totalQty: 0, customers: [] };
+                    }
+                    stats[prodName].totalQty += o.quantity;
+                    stats[prodName].customers.push({ nick: o.customer, qty: o.quantity });
+                });
+
+                return Object.entries(stats).sort((a, b) => {
+                    return a[0].localeCompare(b[0], 'ko', { numeric: true });
+                });
+            }, [orders]);
+
+            return (
+                <div className="flex flex-col h-full bg-white rounded-lg shadow-sm border p-4 overflow-hidden">
+                    <div className="flex justify-between items-center mb-4 pb-4 border-b">
+                        <h2 className="text-xl font-bold flex items-center gap-2">
+                            <Icon name="clipboard-text" weight="fill" className="text-indigo-600"/> 발주 현황
+                            <span className="text-sm font-normal text-gray-500">({productStats.length}종)</span>
+                        </h2>
+                    </div>
+                    <div className="flex-1 overflow-y-auto">
+                        {productStats.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center h-full text-gray-400">
+                                <Icon name="package" size={48} weight="thin" className="mb-2"/>
+                                <p>주문 내역이 없습니다.</p>
+                            </div>
+                        ) : (
+                            productStats.map(([product, info]) => (
+                                <div key={product} className="border-b last:border-0">
+                                    <div 
+                                        className="flex justify-between items-center p-3 hover:bg-indigo-50 cursor-pointer transition-colors"
+                                        onClick={() => setExpandedProduct(expandedProduct === product ? null : product)}
+                                    >
+                                        <span className="font-bold text-gray-700 text-sm">{product}</span>
+                                        <div className="flex items-center gap-2">
+                                            <span className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded font-bold text-xs">
+                                                {info.totalQty}개
+                                            </span>
+                                            <Icon name={expandedProduct === product ? "caret-up" : "caret-down"} className="text-gray-400"/>
+                                        </div>
+                                    </div>
+                                    {expandedProduct === product && (
+                                        <div className="bg-gray-50 p-2 text-xs grid grid-cols-2 sm:grid-cols-3 gap-2 animate-fade-in border-t border-gray-100">
+                                            {info.customers.map((c, idx) => (
+                                                <div key={idx} className="flex justify-between items-center bg-white p-2 rounded border border-gray-200 shadow-sm">
+                                                    <span className="text-gray-600 truncate mr-2" title={c.nick}>{c.nick}</span>
+                                                    <span className="font-bold text-indigo-600 shrink-0">{c.qty}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        // --- 5. CustomerTab (고객관리 탭) ---
         const CustomerTab = ({ addresses, setAddresses, googleScriptUrl, customerSheetId, openModal }) => {
             const [searchTerm, setSearchTerm] = useState('');
             const fileInputRef = useRef(null);
@@ -820,7 +842,6 @@
                     <div className="flex justify-between items-center mb-4 pb-4 border-b">
                         <h2 className="text-xl font-bold flex items-center gap-2"><Icon name="address-book" weight="fill" className="text-indigo-600"/> 고객 주소록 관리 <span className="text-sm font-normal text-gray-500">({addresses.length}명)</span></h2>
                         <div className="flex gap-2">
-                             {/* ID 표시 */}
                              {customerSheetId && <span className="text-[10px] text-gray-400 self-center mr-2">ID연동됨</span>}
                             <button onClick={handleCloudSave} className="bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded text-sm font-bold flex items-center gap-1 shadow-sm"><Icon name="cloud-arrow-up" weight="fill"/> 서버 저장</button>
                             <button onClick={handleCloudLoad} className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded text-sm font-bold flex items-center gap-1 shadow-sm"><Icon name="cloud-arrow-down" weight="fill"/> 서버 로드</button>
@@ -858,6 +879,7 @@
             );
         };
 
+        // --- 6. CSTab (CS 관리 탭) ---
         const CSTab = ({ csData, setCsData, openModal }) => {
             const [newNick, setNewNick] = useState('');
             const [newContent, setNewContent] = useState('');
@@ -888,6 +910,7 @@
             );
         };
 
+        // --- 7. OrderManagementTab (주문 관리/엑셀 탭) ---
         const OrderManagementTab = ({ orders, shippingOverrides, quickShipping, addresses, handleExportBackup, handleImportBackup, addressMapping }) => {
             const fileInputRef = useRef(null);
             
@@ -913,7 +936,6 @@
                     if(activeItems.length === 0) return; 
                     
                     const addrInfo = findAddress(nick) || {}; 
-                    
                     const fullAddress = addrInfo.zipcode ? `(${addrInfo.zipcode}) ${addrInfo.address || ''}` : (addrInfo.address || ''); 
                     const createRow = (productValue) => ({ '날짜시간': new Date().toLocaleString(), '공란1': '', '공란2': '', '닉네임': nick, '주문제품(수량)': productValue, '이름': addrInfo.realname || '', '핸드폰번호': addrInfo.phone || '', '주소': fullAddress, '배송메모': addrInfo.memo || '' }); 
                     excelRows.push(createRow(`[ ${nick} ]`)); 
@@ -985,6 +1007,7 @@
             );
         };
 
+        // --- 8. App 컴포넌트 ---
         const App = () => {
             const [isLoggedIn, setIsLoggedIn] = useState(false);
             const [orders, setOrders] = useState(() => JSON.parse(localStorage.getItem('youtubeOrders')) || []);
@@ -1006,7 +1029,6 @@
                 const saved = localStorage.getItem('checkedOrders'); 
                 return saved ? new Set(JSON.parse(saved)) : new Set(); 
             });
-            // ✅ [추가] 주소 매핑 상태 (localStorage 연동)
             const [addressMapping, setAddressMapping] = useState(() => { 
                 const saved = localStorage.getItem('addressMapping'); 
                 return saved ? JSON.parse(saved) : {}; 
@@ -1109,7 +1131,13 @@
             // ✅ 주소 매핑 저장
             useEffect(() => { localStorage.setItem('addressMapping', JSON.stringify(addressMapping)); }, [addressMapping]);
 
-            const tabs = [ { id: 'live', label: '라이브관제', icon: 'monitor-play' }, { id: 'customer', label: '고객관리', icon: 'address-book' }, { id: 'cs', label: 'CS관리', icon: 'headset' }, { id: 'manage', label: '주문관리(엑셀)', icon: 'file-xls' } ];
+            const tabs = [ 
+                { id: 'live', label: '라이브관제', icon: 'monitor-play' }, 
+                { id: 'status', label: '발주현황', icon: 'clipboard-text' },
+                { id: 'customer', label: '고객관리', icon: 'address-book' }, 
+                { id: 'cs', label: 'CS관리', icon: 'headset' }, 
+                { id: 'manage', label: '주문관리(엑셀)', icon: 'file-xls' } 
+            ];
 
             const resetAllStatus = () => {
                 openModal("모든 주문서 작업 내용과 매칭 기록, **그리고 저장된 상품 목록**을 초기화하시겠습니까?\n\n(주소록과 CS 내역, 키워드는 유지됩니다.)", 'confirm', () => {
@@ -1185,12 +1213,10 @@
                         </div>
                     )}
                     <main className="flex-1 overflow-hidden bg-gray-100 p-2 relative">
-                        {/* ✅ addressMapping, setAddressMapping 추가 전달 */}
                         {activeTab === 'live' && (<LiveTab orders={orders} setOrders={setOrders} productHistory={productHistory} setProductHistory={setProductHistory} quickShipping={quickShipping} setQuickShipping={setQuickShipping} shippingOverrides={shippingOverrides} setShippingOverrides={setShippingOverrides} bankAccount={bankAccount} setBankAccount={setBankAccount} googleScriptUrl={googleScriptUrl} addresses={addresses} setAddresses={setAddresses} cardPayments={cardPayments} setCardPayments={setCardPayments} resetAllStatus={resetAllStatus} matchedDeposits={matchedDeposits} setMatchedDeposits={setMatchedDeposits} depositorNames={depositorNames} setDepositorNames={setDepositorNames} clickedChats={clickedChats} setClickedChats={setClickedChats} openModal={openModal} keywords={keywords} setKeywords={setKeywords} sentAddressRequests={sentAddressRequests} setSentAddressRequests={setSentAddressRequests} deletedDepositIds={deletedDepositIds} setDeletedDepositIds={setDeletedDepositIds} checkedOrders={checkedOrders} setCheckedOrders={setCheckedOrders} addressMapping={addressMapping} setAddressMapping={setAddressMapping} />)}
-                        {/* ✅ customerSheetId props 전달 */}
+                        {activeTab === 'status' && (<OrderStatusTab orders={orders} />)}
                         {activeTab === 'customer' && (<CustomerTab addresses={addresses} setAddresses={setAddresses} googleScriptUrl={googleScriptUrl} customerSheetId={customerSheetId} openModal={openModal} />)}
                         {activeTab === 'cs' && (<CSTab csData={csData} setCsData={setCsData} openModal={openModal} />)}
-                        {/* ✅ handleExportBackup, handleImportBackup, addressMapping 전달 */}
                         {activeTab === 'manage' && (<OrderManagementTab orders={orders} shippingOverrides={shippingOverrides} quickShipping={quickShipping} addresses={addresses} handleExportBackup={handleExportBackup} handleImportBackup={handleImportBackup} addressMapping={addressMapping} />)}
                     </main>
                 </div>
