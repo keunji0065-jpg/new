@@ -3,7 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>깔로 주문서 PRO (최종완성_주소안내수정)</title>
+    <!-- ✅ 캐시 방지 메타 태그 -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    
+    <title>깔로 주문서 PRO (발주엑셀+수정기능)</title>
     
     <!-- 라이브러리 로드 -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin="anonymous"></script>
@@ -108,7 +113,15 @@
         const LoginScreen = ({ onLogin }) => {
             const [password, setPassword] = useState('');
             const [error, setError] = useState(false);
-            const handleSubmit = (e) => { e.preventDefault(); if (password === APP_PASSWORD) { onLogin(); } else { setError(true); setTimeout(() => setError(false), 1000); } };
+            const handleSubmit = (e) => { 
+                e.preventDefault(); 
+                if (password === APP_PASSWORD) { 
+                    onLogin(); 
+                } else { 
+                    setError(true); 
+                    setTimeout(() => setError(false), 1000); 
+                } 
+            };
             return (
                 <div className="flex flex-col items-center justify-center h-screen bg-slate-100 text-slate-700">
                     <div className="bg-white p-8 rounded-2xl shadow-xl w-80 text-center animate-scale-up border border-slate-200">
@@ -120,12 +133,13 @@
                         </form>
                         {error && <p className="text-xs text-red-500 mt-3 font-bold animate-pulse">비밀번호가 일치하지 않습니다.</p>}
                     </div>
+                    <p className="text-[10px] text-gray-400 mt-8">Secure System by Private Builder</p>
                 </div>
             );
         };
 
         // 3. LiveTab
-        const LiveTab = ({ orders, setOrders, productHistory, setProductHistory, quickShipping, setQuickShipping, shippingOverrides, setShippingOverrides, bankAccount, googleScriptUrl, addresses, cardPayments, setCardPayments, resetAllStatus, matchedDeposits, setMatchedDeposits, depositorNames, setDepositorNames, clickedChats, setClickedChats, openModal, keywords, setKeywords, sentAddressRequests, setSentAddressRequests, deletedDepositIds, setDeletedDepositIds, checkedOrders, setCheckedOrders, addressMapping, setAddressMapping }) => {
+        const LiveTab = ({ orders, setOrders, productHistory, setProductHistory, quickShipping, setQuickShipping, shippingOverrides, setShippingOverrides, bankAccount, googleScriptUrl, addresses, cardPayments, setCardPayments, resetAllStatus, matchedDeposits, setMatchedDeposits, depositorNames, setDepositorNames, clickedChats, setClickedChats, openModal, keywords, setKeywords, sentAddressRequests, setSentAddressRequests, deletedDepositIds, setDeletedDepositIds, checkedOrders, setCheckedOrders, addressMapping, setAddressMapping, templateConfig }) => {
             const [chats, setChats] = useState([]);
             const [serverDeposits, setServerDeposits] = useState([]); 
             const [manualDeposits, setManualDeposits] = useState([]); 
@@ -407,24 +421,26 @@
                 const hasZeroPrice = activeItems.some(i => Number(i.price) === 0);
                 const addr = findAddress(nick);
 
-                const itemListText = activeItems.map(i => `${i.product}${i.quantity > 1 ? `(${i.quantity}개)` : ''} ${Number(i.price).toLocaleString()}원`).join('\n');
+                const itemListText = activeItems.map(i => `${i.product}${i.quantity > 1 ? ` ${i.quantity}` : ''} ${Number(i.price).toLocaleString()}원`).join('\n');
                 const currentShipping = shippingOverrides[nick] !== undefined ? shippingOverrides[nick] : Number(quickShipping);
                 
-                let msg = `💙 ${nick} 님 💙\n\n\n${itemListText}\n배송비 ${currentShipping.toLocaleString()}원\n\n총 주문금액 ${grandTotal.toLocaleString()}원\n------------------\n`;
-                if (isCard) { const cardBase = Math.abs(balance); if (depositTotal > 0) msg += `[입금확인]\n${depositTotal.toLocaleString()}원\n\n`; msg += `[카드결제]\n금액 ${cardBase.toLocaleString()}원\n10% ${(cardBase * 0.1).toLocaleString()}원\n👉총 ${(cardBase * 1.1).toLocaleString()}원 예정\n\n핸드폰번호 남겨주세요🌸\n------------------\n\n`; } 
-                else { const isPaid = (balance <= 0) && (grandTotal >= 0) && (activeItems.length > 0); if (depositTotal > 0) msg += `[입금확인]\n${depositTotal.toLocaleString()}원\n------------------\n\n`; if (isPaid) msg += `완납 확인! 감사합니다 😍\n------------------\n\n`; else msg += `[미입금]\n총 입금하실 금액\n👉 ${(balance > 0 ? balance : 0).toLocaleString()}원 \n\n${FIXED_BANK_ACCOUNT}\n입금 부탁드립니다 🙏\n------------------\n\n`; }
+                // 템플릿 적용
+                const { emoji, paidMsg, unpaidPrefix, addrNotice, surveyNotice } = templateConfig;
                 
-                // ✅ [수정] 주소 유무에 따른 안내 메시지
-                if (addr) {
-                    msg += `[배송지 확인]\n`;
-                    msg += `성함: ${addr.realname}\n`;
-                    msg += `연락처: ${addr.phone}\n`;
-                    msg += `주소: ${addr.address} ${addr.zipcode ? `(${addr.zipcode})` : ''}\n`;
-                    if(addr.memo) msg += `메모: ${addr.memo}\n`;
-                    msg += `\n※ 배송지 변경 시 채팅으로 변경할 주소를 남겨주세요!`;
+                let msg = `${emoji} ${nick} 님 ${emoji}\n\n\n${itemListText}\n배송비 ${currentShipping.toLocaleString()}원\n\n총 주문금액 ${grandTotal.toLocaleString()}원\n------------------\n`;
+                if (isCard) { const cardBase = Math.abs(balance); if (depositTotal > 0) msg += `[입금확인]\n${depositTotal.toLocaleString()}원\n------------------\n\n`; msg += `[카드결제]\n금액 ${cardBase.toLocaleString()}원\n10% ${(cardBase * 0.1).toLocaleString()}원\n👉총 ${(cardBase * 1.1).toLocaleString()}원 예정\n\n핸드폰번호 남겨주세요🌸\n------------------\n\n`; } 
+                else { const isPaid = (balance <= 0) && (grandTotal >= 0) && (activeItems.length > 0); if (depositTotal > 0) msg += `[입금확인]\n${depositTotal.toLocaleString()}원\n------------------\n\n`; if (isPaid) msg += `${paidMsg}\n------------------\n`; else msg += `${unpaidPrefix}\n${(balance > 0 ? balance : 0).toLocaleString()}원 \n\n${bankAccount}\n입금 부탁드립니다 🙏\n------------------\n\n`; }
+                
+                if (addr && addr.address) {
+                    msg += `\n[배송지 확인]\n\n`;
+                    msg += `${addr.realname || nick}\n`;
+                    msg += `${addr.phone || ''}\n`;
+                    msg += `${addr.address} ${addr.zipcode ? `(${addr.zipcode})` : ''}\n`;
+                    if(addr.memo) msg += `${addr.memo}\n`;
+                    msg += `\n------------------\n${addrNotice}`;
                 } else {
                     if (!sentAddressRequests.has(nick)) { 
-                        msg += `방송마다 1회\n하단의 주문서(배송지입력) 필수!!\n\n이미 참여한 설문 일 경우\n▫ 답변 수정하기 \n▫ 또는 설문 추가 참여\n\n미입력이 많아 계속 안내합니다. \n양해부탁드립니다.`; 
+                        msg += `\n${surveyNotice}`; 
                         setSentAddressRequests(prev => new Set(prev).add(nick)); 
                     } 
                 }
@@ -520,7 +536,10 @@
 
             return (
                 <div className="flex h-full gap-2 p-2 overflow-hidden bg-gray-50 text-slate-800">
-                    <datalist id="product-list">{filteredProductList.map(name => <option key={name} value={name} />)}</datalist>
+                    <datalist id="product-list">
+                        {filteredProductList.map(name => <option key={name} value={name} />)}
+                    </datalist>
+                    {/* LiveTab UI: 채팅창, 입금내역, 주문서 */}
                     <div className="w-[30%] flex flex-col bg-white border rounded-lg shadow-sm overflow-hidden">
                         <div className="p-2 bg-indigo-50 border-b flex flex-col gap-2">
                             <div className="font-bold text-indigo-700 flex items-center justify-between"><div className="flex items-center gap-2"><span className="flex items-center gap-1"><Icon name="youtube-logo" weight="fill" className="text-red-600"/> 라이브 댓글</span><button onClick={() => setShowKeywordOnly(!showKeywordOnly)} className={`flex items-center justify-center w-6 h-6 rounded-full transition-all ${showKeywordOnly ? 'bg-blue-600 text-white shadow-sm' : 'bg-white text-gray-400 border border-gray-200 hover:text-blue-500'}`}><Icon name="target" weight={showKeywordOnly ? "fill" : "bold"} size={14} /></button></div><span className="text-xs text-gray-500">{filteredChats.length}건</span></div>
@@ -557,6 +576,7 @@
                         </div>
                         <div className="flex-1 overflow-y-auto p-2 space-y-2">
                             {filteredGroupedOrders.map(([nick, items]) => {
+                                // ... (주문서 목록 렌더링, LiveTab 내부 로직과 동일)
                                 const isSelected = selectedNick === nick;
                                 const currentShipping = shippingOverrides[nick] !== undefined ? shippingOverrides[nick] : Number(quickShipping);
                                 const activeItems = items.filter(i => !i.isCancelled);
@@ -706,9 +726,9 @@
                 </div>
             );
         };
-
-        // --- OrderStatusTab (New) ---
-        const OrderStatusTab = ({ orders }) => {
+        
+        // --- 4. OrderStatusTab (발주현황) ---
+        const OrderStatusTab = ({ orders, setOrders, setProductHistory }) => {
             const [expandedProduct, setExpandedProduct] = useState(null);
 
             const productStats = useMemo(() => {
@@ -727,6 +747,48 @@
                 });
             }, [orders]);
 
+            const handleDownloadExcel = () => {
+                let data = [];
+                productStats.forEach(([product, info]) => {
+                    // 상품명 행 (굵게 표시할 수는 없지만 구분됨)
+                    data.push({
+                        '구분': '📦 상품',
+                        '내용': product,
+                        '수량': info.totalQty
+                    });
+                    // 주문자 상세 내역 (들여쓰기 느낌으로)
+                    info.customers.forEach(c => {
+                        data.push({
+                            '구분': '└ 주문자',
+                            '내용': c.nick,
+                            '수량': c.qty
+                        });
+                    });
+                    // 빈 줄 추가
+                    data.push({});
+                });
+                downloadExcel(data, '발주현황_상세');
+            };
+
+            // 상품명 일괄 수정
+            const handleEditProductName = (oldName) => {
+                const newName = prompt(`'${oldName}'의 새로운 상품명을 입력하세요.\n(모든 주문서에서 일괄 변경됩니다)`, oldName);
+                if (newName && newName !== oldName) {
+                    if (confirm(`정말 '${oldName}'을(를) '${newName}'(으)로 변경하시겠습니까?\n모든 주문 내역이 업데이트됩니다.`)) {
+                        setOrders(prev => prev.map(o => o.product === oldName ? { ...o, product: newName } : o));
+                        
+                        setProductHistory(prev => {
+                            const next = { ...prev };
+                            if (next[oldName]) {
+                                next[newName] = next[oldName];
+                                delete next[oldName];
+                            }
+                            return next;
+                        });
+                    }
+                }
+            };
+
             return (
                 <div className="flex flex-col h-full bg-white rounded-lg shadow-sm border p-4 overflow-hidden">
                     <div className="flex justify-between items-center mb-4 pb-4 border-b">
@@ -734,6 +796,9 @@
                             <Icon name="clipboard-text" weight="fill" className="text-indigo-600"/> 발주 현황
                             <span className="text-sm font-normal text-gray-500">({productStats.length}종)</span>
                         </h2>
+                        <button onClick={handleDownloadExcel} className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-sm font-bold flex items-center gap-1 shadow-sm">
+                            <Icon name="file-xls" weight="fill"/> 엑셀 다운로드
+                        </button>
                     </div>
                     <div className="flex-1 overflow-y-auto">
                         {productStats.length === 0 ? (
@@ -744,16 +809,25 @@
                         ) : (
                             productStats.map(([product, info]) => (
                                 <div key={product} className="border-b last:border-0">
-                                    <div 
-                                        className="flex justify-between items-center p-3 hover:bg-indigo-50 cursor-pointer transition-colors"
-                                        onClick={() => setExpandedProduct(expandedProduct === product ? null : product)}
-                                    >
-                                        <span className="font-bold text-gray-700 text-sm">{product}</span>
+                                    <div className="flex justify-between items-center p-3 hover:bg-indigo-50 transition-colors">
+                                        <div 
+                                            className="flex-1 cursor-pointer flex items-center gap-2"
+                                            onClick={() => setExpandedProduct(expandedProduct === product ? null : product)}
+                                        >
+                                            <span className="font-bold text-gray-700 text-sm">{product}</span>
+                                            <Icon name={expandedProduct === product ? "caret-up" : "caret-down"} className="text-gray-400"/>
+                                        </div>
                                         <div className="flex items-center gap-2">
-                                            <span className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded font-bold text-xs">
+                                            <button 
+                                                onClick={() => handleEditProductName(product)} 
+                                                className="text-gray-400 hover:text-indigo-600 p-1" 
+                                                title="상품명 일괄 수정"
+                                            >
+                                                <Icon name="pencil-simple" weight="bold"/>
+                                            </button>
+                                            <span className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded font-bold text-xs w-12 text-center">
                                                 {info.totalQty}개
                                             </span>
-                                            <Icon name={expandedProduct === product ? "caret-up" : "caret-down"} className="text-gray-400"/>
                                         </div>
                                     </div>
                                     {expandedProduct === product && (
@@ -1043,10 +1117,21 @@
                 const saved = localStorage.getItem('checkedOrders'); 
                 return saved ? new Set(JSON.parse(saved)) : new Set(); 
             });
-            // ✅ [추가] 주소 매핑 상태 (localStorage 연동)
             const [addressMapping, setAddressMapping] = useState(() => { 
                 const saved = localStorage.getItem('addressMapping'); 
                 return saved ? JSON.parse(saved) : {}; 
+            });
+
+            // ✅ 템플릿 설정 상태 추가
+            const [templateConfig, setTemplateConfig] = useState(() => {
+                const saved = localStorage.getItem('templateConfig');
+                return saved ? JSON.parse(saved) : {
+                    emoji: '💙',
+                    paidMsg: '😍 완납 확인! 감사합니다 😍',
+                    unpaidPrefix: '[미입금]\n총 입금하실 금액\n👉',
+                    addrNotice: '※ 배송지 변경 시 채팅으로 변경할 주소를 남겨주세요!',
+                    surveyNotice: '방송마다 1회\n하단의 주문서(배송지입력) 필수!!\n\n이미 참여한 설문 일 경우\n▫ 답변 수정하기 \n▫ 또는 설문 추가 참여\n\n미입력이 많아 계속 안내합니다. \n양해부탁드립니다.'
+                };
             });
 
             const [isSettingsOpen, setIsSettingsOpen] = useState(false); 
@@ -1085,6 +1170,7 @@
                     deletedDepositIds: [...deletedDepositIds],
                     checkedOrders: [...checkedOrders],
                     addressMapping, // 백업 포함
+                    templateConfig, // 템플릿 설정도 백업
                     depositorNames,
                     keywords: [...keywords]
                 };
@@ -1115,6 +1201,7 @@
                             if(data.deletedDepositIds) setDeletedDepositIds(new Set(data.deletedDepositIds));
                             if(data.checkedOrders) setCheckedOrders(new Set(data.checkedOrders));
                             if(data.addressMapping) setAddressMapping(data.addressMapping);
+                            if(data.templateConfig) setTemplateConfig(data.templateConfig);
                             if(data.depositorNames) setDepositorNames(data.depositorNames);
                             if(data.keywords) setKeywords(new Set(data.keywords));
                             openModal("데이터 복구가 완료되었습니다!", 'alert');
@@ -1143,11 +1230,14 @@
             useEffect(() => { localStorage.setItem('sentAddressRequests', JSON.stringify([...sentAddressRequests])); }, [sentAddressRequests]);
             useEffect(() => { localStorage.setItem('deletedDepositIds', JSON.stringify([...deletedDepositIds])); }, [deletedDepositIds]);
             useEffect(() => { localStorage.setItem('checkedOrders', JSON.stringify([...checkedOrders])); }, [checkedOrders]);
+            // ✅ 주소 매핑 저장
             useEffect(() => { localStorage.setItem('addressMapping', JSON.stringify(addressMapping)); }, [addressMapping]);
+            // ✅ 템플릿 설정 저장
+            useEffect(() => { localStorage.setItem('templateConfig', JSON.stringify(templateConfig)); }, [templateConfig]);
 
             const tabs = [ 
                 { id: 'live', label: '라이브관제', icon: 'monitor-play' }, 
-                { id: 'status', label: '발주현황', icon: 'clipboard-text' },
+                { id: 'status', label: '발주현황', icon: 'clipboard-text' }, 
                 { id: 'customer', label: '고객관리', icon: 'address-book' }, 
                 { id: 'cs', label: 'CS관리', icon: 'headset' }, 
                 { id: 'manage', label: '주문관리(엑셀)', icon: 'file-xls' } 
@@ -1201,36 +1291,65 @@
                     />
 
                     {isSettingsOpen && (
-                        <div className="absolute top-12 right-4 bg-white shadow-xl border rounded-lg p-4 w-80 z-50 animate-pop">
+                        <div className="absolute top-12 right-4 bg-white shadow-xl border rounded-lg p-4 w-96 z-50 animate-pop max-h-[80vh] overflow-y-auto">
                             <h3 className="font-bold mb-4 flex items-center gap-2 border-b pb-2"><Icon name="gear" weight="fill" className="text-gray-500"/> 환경설정</h3>
-                            <div className="mb-4">
-                                <label className="block text-xs font-bold text-indigo-600 mb-1">구글 앱스 스크립트 URL</label>
-                                <input type="text" value={googleScriptUrl} onChange={(e)=>setGoogleScriptUrl(e.target.value)} className="w-full border rounded px-2 py-1.5 text-xs text-gray-600 font-mono break-all" placeholder="https://script.google.com/..." />
-                                <p className="text-[10px] text-gray-400 mt-1">※ 배포 주소가 바뀌면 여기에 입력하세요.</p>
+                            
+                            <div className="mb-4 space-y-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-indigo-600 mb-1">구글 앱스 스크립트 URL</label>
+                                    <input type="text" value={googleScriptUrl} onChange={(e)=>setGoogleScriptUrl(e.target.value)} className="w-full border rounded px-2 py-1.5 text-xs text-gray-600 font-mono break-all" placeholder="https://script.google.com/..." />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-green-600 mb-1">고객 주소록 시트 ID (선택)</label>
+                                    <input type="text" value={customerSheetId} onChange={(e)=>setCustomerSheetId(e.target.value)} className="w-full border rounded px-2 py-1.5 text-xs text-gray-600 font-mono" placeholder="1AbC-xYz..." />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 mb-1">기본 배송비 설정</label>
+                                    <div className="flex items-center gap-2"><input type="number" value={quickShipping} onChange={(e)=>setQuickShipping(Number(e.target.value))} className="w-full border rounded px-2 py-1.5 text-sm" /><span className="text-sm text-gray-500">원</span></div>
+                                </div>
+                                
+                                <div className="border-t pt-4">
+                                    <h4 className="text-sm font-bold text-slate-800 mb-2 flex items-center gap-1"><Icon name="chat-text" weight="fill"/> 주문서 멘트 설정</h4>
+                                    
+                                    <div className="space-y-3">
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-gray-500 mb-1">닉네임 장식 이모지</label>
+                                            <input type="text" value={templateConfig.emoji} onChange={(e)=>setTemplateConfig({...templateConfig, emoji: e.target.value})} className="w-full border rounded px-2 py-1.5 text-sm" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-gray-500 mb-1">완납 확인 메시지</label>
+                                            <input type="text" value={templateConfig.paidMsg} onChange={(e)=>setTemplateConfig({...templateConfig, paidMsg: e.target.value})} className="w-full border rounded px-2 py-1.5 text-sm" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-gray-500 mb-1">미납 안내 문구 (상단)</label>
+                                            <textarea value={templateConfig.unpaidPrefix} onChange={(e)=>setTemplateConfig({...templateConfig, unpaidPrefix: e.target.value})} className="w-full border rounded px-2 py-1.5 text-xs h-16 resize-none" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-gray-500 mb-1">계좌번호</label>
+                                            <textarea value={bankAccount} onChange={(e)=>setBankAccount(e.target.value)} className="w-full border rounded px-2 py-1.5 text-xs h-12 resize-none" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-gray-500 mb-1">주소 있을 때 하단 안내</label>
+                                            <textarea value={templateConfig.addrNotice} onChange={(e)=>setTemplateConfig({...templateConfig, addrNotice: e.target.value})} className="w-full border rounded px-2 py-1.5 text-xs h-12 resize-none" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-gray-500 mb-1">주소 없을 때 하단 안내</label>
+                                            <textarea value={templateConfig.surveyNotice} onChange={(e)=>setTemplateConfig({...templateConfig, surveyNotice: e.target.value})} className="w-full border rounded px-2 py-1.5 text-xs h-24 resize-none" />
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                            <div className="mb-4">
-                                <label className="block text-xs font-bold text-green-600 mb-1">고객 주소록 시트 ID (선택)</label>
-                                <input type="text" value={customerSheetId} onChange={(e)=>setCustomerSheetId(e.target.value)} className="w-full border rounded px-2 py-1.5 text-xs text-gray-600 font-mono" placeholder="1AbC-xYz..." />
-                                <p className="text-[10px] text-gray-400 mt-1">※ 별도 파일에 주소록을 저장하려면 ID 입력.<br/>(비워두면 기본 시트의 'Addresses' 탭 사용)</p>
-                            </div>
-                            <div className="mb-4">
-                                <button onClick={() => window.open(googleScriptUrl, '_blank')} className="w-full bg-blue-500 hover:bg-blue-600 text-white rounded py-2 text-xs font-bold mb-2 flex items-center justify-center gap-1">
-                                    <Icon name="pulse" weight="bold"/> 서버 상태 확인하기 (새창)
-                                </button>
-                                <p className="text-[10px] text-gray-400 text-center">클릭 후 JSON 데이터가 보이면 정상입니다.</p>
-                            </div>
-                            <div className="mb-4">
-                                <label className="block text-xs font-bold text-gray-500 mb-1">기본 배송비 설정</label>
-                                <div className="flex items-center gap-2"><input type="number" value={quickShipping} onChange={(e)=>setQuickShipping(Number(e.target.value))} className="w-full border rounded px-2 py-1.5 text-sm" /><span className="text-sm text-gray-500">원</span></div>
-                            </div>
-                            <button onClick={()=>setIsSettingsOpen(false)} className="w-full bg-indigo-600 text-white rounded py-2 text-sm font-bold hover:bg-indigo-700">저장 및 닫기</button>
+
+                            <button onClick={()=>setIsSettingsOpen(false)} className="w-full bg-indigo-600 text-white rounded py-2 text-sm font-bold hover:bg-indigo-700 sticky bottom-0">저장 및 닫기</button>
                         </div>
                     )}
                     <main className="flex-1 overflow-hidden bg-gray-100 p-2 relative">
-                        {/* ✅ addressMapping, setAddressMapping 추가 전달 */}
-                        {activeTab === 'live' && (<LiveTab orders={orders} setOrders={setOrders} productHistory={productHistory} setProductHistory={setProductHistory} quickShipping={quickShipping} setQuickShipping={setQuickShipping} shippingOverrides={shippingOverrides} setShippingOverrides={setShippingOverrides} bankAccount={bankAccount} setBankAccount={setBankAccount} googleScriptUrl={googleScriptUrl} addresses={addresses} setAddresses={setAddresses} cardPayments={cardPayments} setCardPayments={setCardPayments} resetAllStatus={resetAllStatus} matchedDeposits={matchedDeposits} setMatchedDeposits={setMatchedDeposits} depositorNames={depositorNames} setDepositorNames={setDepositorNames} clickedChats={clickedChats} setClickedChats={setClickedChats} openModal={openModal} keywords={keywords} setKeywords={setKeywords} sentAddressRequests={sentAddressRequests} setSentAddressRequests={setSentAddressRequests} deletedDepositIds={deletedDepositIds} setDeletedDepositIds={setDeletedDepositIds} checkedOrders={checkedOrders} setCheckedOrders={setCheckedOrders} addressMapping={addressMapping} setAddressMapping={setAddressMapping} />)}
-                        {/* ✅ [추가] 발주현황 탭 */}
-                        {activeTab === 'status' && (<OrderStatusTab orders={orders} />)}
+                        {/* ✅ templateConfig, setProductHistory 추가 전달 */}
+                        {activeTab === 'live' && (<LiveTab orders={orders} setOrders={setOrders} productHistory={productHistory} setProductHistory={setProductHistory} quickShipping={quickShipping} setQuickShipping={setQuickShipping} shippingOverrides={shippingOverrides} setShippingOverrides={setShippingOverrides} bankAccount={bankAccount} setBankAccount={setBankAccount} googleScriptUrl={googleScriptUrl} addresses={addresses} setAddresses={setAddresses} cardPayments={cardPayments} setCardPayments={setCardPayments} resetAllStatus={resetAllStatus} matchedDeposits={matchedDeposits} setMatchedDeposits={setMatchedDeposits} depositorNames={depositorNames} setDepositorNames={setDepositorNames} clickedChats={clickedChats} setClickedChats={setClickedChats} openModal={openModal} keywords={keywords} setKeywords={setKeywords} sentAddressRequests={sentAddressRequests} setSentAddressRequests={setSentAddressRequests} deletedDepositIds={deletedDepositIds} setDeletedDepositIds={setDeletedDepositIds} checkedOrders={checkedOrders} setCheckedOrders={setCheckedOrders} addressMapping={addressMapping} setAddressMapping={setAddressMapping} templateConfig={templateConfig} />)}
+                        
+                        {/* ✅ setProductHistory, setOrders 추가 전달 (발주현황) */}
+                        {activeTab === 'status' && (<OrderStatusTab orders={orders} setOrders={setOrders} setProductHistory={setProductHistory} />)}
+                        
                         {/* ✅ customerSheetId props 전달 */}
                         {activeTab === 'customer' && (<CustomerTab addresses={addresses} setAddresses={setAddresses} googleScriptUrl={googleScriptUrl} customerSheetId={customerSheetId} openModal={openModal} />)}
                         {activeTab === 'cs' && (<CSTab csData={csData} setCsData={setCsData} openModal={openModal} />)}
