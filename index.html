@@ -8,7 +8,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     
-    <title>깔로 주문서 PRO (재고알림강화)</title>
+    <title>깔로 주문서 PRO (미입금리스트추가)</title>
     
     <!-- 라이브러리 로드 -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin="anonymous"></script>
@@ -285,32 +285,11 @@
                 });
             };
 
-            // ✅ [수정] 주문 추가/수정 통합 로직 (재고 체크 포함)
             const addOrderLogic = (nickname, content, qty = 1, forceNewRow = false) => {
                 const cleanNick = String(nickname || '').replace(/@/g, '').trim();
                 const initialProduct = content || '';
                 
-                // 1. 재고 체크
-                if (inventory && inventory[initialProduct]) {
-                    const currentOrdered = orders.filter(o => o.product === initialProduct && !o.isCancelled).reduce((sum, o) => sum + o.quantity, 0);
-                    const stock = inventory[initialProduct].stock;
-                    const remaining = stock - currentOrdered;
-                    
-                    if (remaining < qty) {
-                        openModal(`'${initialProduct}' 상품은 품절(또는 재고 부족) 상태입니다!\n(잔여: ${remaining}개 / 신청: ${qty}개)\n\n강제로 추가하시겠습니까? (오버부킹)`, 'confirm', () => {
-                             commitOrder(cleanNick, initialProduct, qty, forceNewRow);
-                        });
-                        return; // 확인 대기
-                    }
-                }
-                
-                commitOrder(cleanNick, initialProduct, qty, forceNewRow);
-            };
-
-            // ✅ 실제 주문 추가 로직 (분리됨)
-            const commitOrder = (cleanNick, initialProduct, qty, forceNewRow) => {
                 let initialPrice = 0;
-                // 방어 코드: inventory가 undefined일 경우 대비
                 if (inventory && inventory[initialProduct]) {
                     initialPrice = Number(inventory[initialProduct].price) || 0;
                 } else {
@@ -323,7 +302,7 @@
                         const existIdx = prev.findIndex(o => o.customer === cleanNick && o.product === initialProduct && !o.isCancelled);
                         if (existIdx >= 0) { const next = [...prev]; next[existIdx] = { ...next[existIdx], quantity: next[existIdx].quantity + qty, price: (next[existIdx].quantity + qty) * initialPrice }; return next; }
                     }
-                    const newOrder = { id: Date.now(), customer: cleanNick, product: initialProduct, quantity: qty, price: initialPrice, deposit: 0, originalText: initialProduct, isCancelled: false };
+                    const newOrder = { id: Date.now(), customer: cleanNick, product: initialProduct, quantity: qty, price: initialPrice, deposit: 0, originalText: content, isCancelled: false };
                     let lastIdx = -1;
                     for (let i = prev.length - 1; i >= 0; i--) { if (prev[i].customer === cleanNick) { lastIdx = i; break; } }
                     if (lastIdx !== -1) { const next = [...prev]; next.splice(lastIdx + 1, 0, newOrder); return next; } else { return [newOrder, ...prev]; }
@@ -1358,10 +1337,10 @@
         };
 
         // --- 7. OrderManagementTab (주문 관리/엑셀 탭) ---
-        const OrderManagementTab = ({ orders, shippingOverrides, quickShipping, addresses, handleExportBackup, handleImportBackup, addressMapping }) => {
+        const OrderManagementTab = ({ orders, shippingOverrides, quickShipping, addresses, handleExportBackup, handleImportBackup, addressMapping, cardPayments }) => {
             const fileInputRef = useRef(null);
             
-            const handleExportProducts = () => { const summary = {}; orders.forEach(o => { if(o.isCancelled) return; const name = o.product || '(상품명 없음)'; if (!summary[name]) summary[name] = 0; summary[name] += Number(o.quantity); }); const data = Object.entries(summary).map(([product, qty]) => ({ '상품명': product, '총필요수량': qty })); downloadExcel(data, '상품별_발주리스트'); };
+            const handleExportProducts = () => { const summary = {}; orders.forEach(o => { if(o.isCancelled) return; const name = o.product || '(상품명 없음)'; if (!summary[name]) summary[name] = 0; summary[name] += Number(o.quantity); }); const sortedKeys = Object.keys(summary).sort((a, b) => a.localeCompare(b, 'ko', { numeric: true })); const data = sortedKeys.map(product => ({ '상품명': product, '총필요수량': summary[product] })); downloadExcel(data, '상품별_발주리스트'); };
             
             const normalizeString = (str) => String(str || '').replace(/[\s\(\)\[\]\{\}\-\_\.\,\/]/g, '').toLowerCase();
 
@@ -1417,6 +1396,52 @@
                 downloadExcel(data, '전체_주문_상세내역');
             };
 
+            const handleExportUnpaid = () => {
+                const groups = {}; 
+                orders.forEach(o => { if (!groups[o.customer]) groups[o.customer] = []; groups[o.customer].push(o); });
+                
+                const data = [];
+                Object.entries(groups).forEach(([nick, items]) => {
+                    // 카드 결제 제외
+                    if (cardPayments && cardPayments[nick]) return;
+                    
+                    const activeItems = items.filter(i => !i.isCancelled);
+                    if (activeItems.length === 0) return;
+                    
+                    const currentShipping = shippingOverrides[nick] !== undefined ? shippingOverrides[nick] : Number(quickShipping);
+                    const productTotal = activeItems.reduce((sum, i) => sum + Number(i.price), 0);
+                    const grandTotal = productTotal + currentShipping;
+                    const depositTotal = items.reduce((sum, i) => sum + (i.deposit || 0), 0);
+                    const balance = grandTotal - depositTotal;
+                    
+                    if (balance > 0) {
+                        const addrInfo = findAddress(nick) || {};
+                        const itemListStr = activeItems.map(i => `${i.product}(${i.quantity})`).join(', ');
+                        
+                        data.push({
+                            '닉네임': nick,
+                            '이름': addrInfo.realname || '',
+                            '전화번호': addrInfo.phone || '',
+                            '총주문액': grandTotal,
+                            '입금액': depositTotal,
+                            '미수금': balance,
+                            '주문내역': itemListStr,
+                            '배송메모': addrInfo.memo || ''
+                        });
+                    }
+                });
+                
+                if (data.length === 0) {
+                    alert("미입금 내역이 없습니다.");
+                    return;
+                }
+                
+                // 닉네임 순 정렬
+                data.sort((a, b) => a['닉네임'].localeCompare(b['닉네임']));
+                
+                downloadExcel(data, '미입금자_리스트');
+           };
+
             return (
                 <div className="flex flex-col items-center justify-center h-full p-10 gap-6 overflow-y-auto content-center">
                     <div className="w-full max-w-4xl grid grid-cols-2 gap-4 mb-6">
@@ -1436,7 +1461,7 @@
                             </button>
                         </div>
                     </div>
-                    <div className="grid grid-cols-3 gap-6 w-full max-w-5xl">
+                    <div className="grid grid-cols-2 gap-6 w-full max-w-5xl"> {/* grid-cols-3 -> 2로 변경하여 4개 배치 */}
                         <div className="bg-white p-6 rounded-xl shadow-lg border text-center">
                             <div className="text-3xl mb-3">📦</div><h2 className="text-lg font-bold mb-2">발주용 품목 집계</h2><p className="text-gray-500 mb-4 text-xs">상품별 총 필요 수량 확인</p>
                             <button onClick={handleExportProducts} className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 rounded-lg flex items-center justify-center gap-2 text-sm"><Icon name="file-xls" weight="fill" size={16}/> 엑셀 다운로드</button>
@@ -1449,11 +1474,17 @@
                             <div className="text-3xl mb-3">📑</div><h2 className="text-lg font-bold mb-2">전체 주문 상세</h2><p className="text-gray-500 mb-4 text-xs">모든 주문 내역 원본 저장</p>
                             <button onClick={handleExportAllRawData} className="w-full bg-slate-600 hover:bg-slate-700 text-white font-bold py-2 rounded-lg flex items-center justify-center gap-2 text-sm"><Icon name="file-csv" weight="fill" size={16}/> 엑셀 다운로드</button>
                         </div>
+                         {/* ✅ 미입금자 리스트 버튼 추가 */}
+                        <div className="bg-white p-6 rounded-xl shadow-lg border text-center ring-2 ring-red-100">
+                            <div className="text-3xl mb-3">💸</div><h2 className="text-lg font-bold mb-2 text-red-600">미입금자 리스트</h2><p className="text-gray-500 mb-4 text-xs">입금 부족/미납 고객 명단</p>
+                            <button onClick={handleExportUnpaid} className="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-2 rounded-lg flex items-center justify-center gap-2 text-sm"><Icon name="file-xls" weight="fill" size={16}/> 엑셀 다운로드</button>
+                        </div>
                     </div>
                 </div>
             );
         };
 
+        // --- 8. App 컴포넌트 ---
         const App = () => {
             const [isLoggedIn, setIsLoggedIn] = useState(false);
             const [orders, setOrders] = useState(() => JSON.parse(localStorage.getItem('youtubeOrders')) || []);
@@ -1745,7 +1776,7 @@
                         {activeTab === 'customer' && (<CustomerTab addresses={addresses} setAddresses={setAddresses} googleScriptUrl={googleScriptUrl} customerSheetId={customerSheetId} openModal={openModal} specialCustomers={specialCustomers} setSpecialCustomers={setSpecialCustomers} />)}
                         {activeTab === 'cs' && (<CSTab csData={csData} setCsData={setCsData} openModal={openModal} />)}
                         {/* ✅ handleExportBackup, handleImportBackup, addressMapping 전달 */}
-                        {activeTab === 'manage' && (<OrderManagementTab orders={orders} shippingOverrides={shippingOverrides} quickShipping={quickShipping} addresses={addresses} handleExportBackup={handleExportBackup} handleImportBackup={handleImportBackup} addressMapping={addressMapping} />)}
+                        {activeTab === 'manage' && (<OrderManagementTab orders={orders} shippingOverrides={shippingOverrides} quickShipping={quickShipping} addresses={addresses} handleExportBackup={handleExportBackup} handleImportBackup={handleImportBackup} addressMapping={addressMapping} cardPayments={cardPayments} />)}
                     </main>
                 </div>
             );
