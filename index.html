@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>깔로 주문서 PRO (자동완성_완벽복구)</title>
+    <title>깔로 주문서 PRO (입금자명_영구보존)</title>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin="anonymous"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js" crossorigin="anonymous"></script>
@@ -433,7 +433,7 @@
                                          <div className="flex items-center gap-2">
                                             <span className="font-bold text-sm text-gray-800">{nick}</span>
                                             {renderSpecialBadge(nick)}
-                                            <button onClick={(e) => { e.stopPropagation(); addOrderLogic(nick, '', 1); }} className="bg-indigo-100 text-indigo-700 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold hover:bg-indigo-200" title="빈 상품줄 추가">+</button>
+                                            <button onClick={(e) => { e.stopPropagation(); addOrderLogic(nick, '', 1); }} className="bg-indigo-100 text-indigo-700 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold hover:bg-indigo-200">+</button>
                                             <button onClick={(e)=>{e.stopPropagation(); handleNicknameEdit(nick);}} className="text-gray-300 hover:text-indigo-600" title="닉네임 수정"><Icon name="pencil-simple" weight="bold" size={12}/></button>
                                             <button onClick={(e) => { e.stopPropagation(); toggleCardPayment(nick); }} className={`ml-1 text-[10px] px-1.5 py-0.5 rounded border transition-colors ${isCard ? 'bg-purple-100 border-purple-300 text-purple-700 font-bold' : 'bg-white text-gray-400 hover:bg-gray-100'}`}>카드</button>
                                             
@@ -455,7 +455,9 @@
                                              ) : (
                                                  <div className="flex items-center gap-1">
                                                     <span className="text-red-300 text-[10px] flex items-center gap-1"><Icon name="warning-circle" weight="fill"/> 주소없음</span>
+                                                    {/* ✅ [복구됨] 수동 주소 연결 버튼 */}
                                                     <button onClick={(e) => { e.stopPropagation(); openModal("연결할 주소록의 닉네임을 입력하세요.", "prompt", (targetNick) => { if(targetNick) handleAddressMapping(nick, targetNick); }); }} className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded border border-gray-300 hover:bg-gray-200 flex items-center gap-1"><Icon name="link" weight="bold" /> 연결</button>
+                                                    {/* ✅ [복구됨] 유사 닉네임 추천 버튼 */}
                                                     {suggestions.length > 0 && (<div className="flex flex-wrap gap-1 items-center bg-orange-50 px-1 py-0.5 rounded"><span className="text-[9px] text-orange-600 font-bold">유사:</span>{suggestions.map(s => (<button key={s} onClick={(e) => {e.stopPropagation(); handleAddressMapping(nick, s);}} className="bg-white border border-orange-200 text-orange-700 px-1.5 py-0.5 rounded text-[9px] hover:bg-orange-100 transition-colors shadow-sm">{s}</button>))}</div>)}
                                                  </div>
                                              )}
@@ -626,7 +628,7 @@
                     const addrInfo = findAddress(nick) || {}; 
                     const fullAddress = addrInfo.zipcode ? `(${addrInfo.zipcode}) ${addrInfo.address || ''}` : (addrInfo.address || ''); 
                     
-                    // ✅ [수정] 미입금 시 C열 표기, 메모는 원본 유지
+                    // ✅ [수정] 미입금 시 C열 및 메모에 표시
                     const statusColumn = isPaid ? "" : "미입금";
                     // notePrefix 제거됨
                     const createRow = (productValue) => ({ '날짜시간': new Date().toLocaleString(), '공란1': '', '입금상태': statusColumn, '닉네임': nick, '주문제품(수량)': productValue, '이름': addrInfo.realname || '', '핸드폰번호': addrInfo.phone || '', '주소': fullAddress, '배송메모': (addrInfo.memo || '') }); 
