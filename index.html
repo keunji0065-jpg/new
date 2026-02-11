@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>깔로 주문서 PRO (최종_완결)</title>
+    <title>깔로 주문서 PRO (기능복구완료)</title>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin="anonymous"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js" crossorigin="anonymous"></script>
@@ -30,7 +30,6 @@
         .copy-anim { animation: copySuccess 0.3s ease-in-out; }
         .animate-pop { animation: pop 0.2s ease-out; }
         .animate-fade-in { animation: fadeIn 0.2s ease-out; }
-        .animate-scale-up { animation: scaleUp 0.2s ease-out; }
         @keyframes pop { 0% { transform: scale(0.9); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
         @keyframes copySuccess { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -316,7 +315,23 @@
                     <div className="w-[30%] flex flex-col bg-white border rounded-lg shadow-sm overflow-hidden">
                         <div className="p-2 bg-indigo-50 border-b flex flex-col gap-2">
                              <div className="font-bold text-indigo-700 flex items-center justify-between"><div className="flex items-center gap-2"><span className="flex items-center gap-1"><Icon name="youtube-logo" weight="fill" className="text-red-600"/> 라이브 댓글</span><button onClick={() => setShowKeywordOnly(!showKeywordOnly)} className={`flex items-center justify-center w-6 h-6 rounded-full transition-all ${showKeywordOnly ? 'bg-blue-600 text-white shadow-sm' : 'bg-white text-gray-400 border border-gray-200 hover:text-blue-500'}`}><Icon name="target" weight={showKeywordOnly ? "fill" : "bold"} size={14} /></button></div><span className="text-xs text-gray-500">{filteredChats.length}건</span></div>
-                             <div className="relative"><Icon name="magnifying-glass" className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs"/><input type="text" placeholder="닉네임/내용 검색" value={chatSearch} onChange={e => setChatSearch(e.target.value)} className="w-full text-xs pl-7 pr-2 py-1.5 border rounded focus:ring-1 focus:ring-indigo-500 outline-none" /></div>
+                             {/* ✅ 키워드 관리 UI 복구 */}
+                             <div className="flex flex-col gap-1 bg-white p-1 rounded border border-indigo-100 mt-1">
+                                <form onSubmit={handleAddKeyword} className="flex gap-1">
+                                    <input type="text" value={keywordInput} onChange={(e) => setKeywordInput(e.target.value)} placeholder="키워드 추가" className="flex-1 text-xs border rounded px-1 py-0.5 outline-none" />
+                                    <button type="submit" className="bg-blue-500 text-white px-2 py-0.5 rounded text-xs font-bold">추가</button>
+                                </form>
+                                {keywords.size > 0 && (
+                                    <div className="flex flex-wrap gap-1 max-h-16 overflow-y-auto scrollbar-thin p-1 bg-gray-50 border rounded">
+                                        {[...keywords].map(k => (
+                                            <span key={k} onClick={() => handleRemoveKeyword(k)} className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full text-[10px] cursor-pointer hover:bg-red-100 hover:text-red-600 flex items-center gap-0.5 shrink-0">
+                                                {k} <Icon name="x" weight="bold" size={8}/>
+                                            </span>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                             <div className="relative mt-2"><Icon name="magnifying-glass" className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs"/><input type="text" placeholder="닉네임/내용 검색" value={chatSearch} onChange={e => setChatSearch(e.target.value)} className="w-full text-xs pl-7 pr-2 py-1.5 border rounded focus:ring-1 focus:ring-indigo-500 outline-none" /></div>
                         </div>
                         <div className="flex-1 overflow-y-auto p-2 space-y-1">{filteredChats.map(chat => (<div key={chat.id} onClick={() => handleChatClick(chat)} className={`p-2 border rounded cursor-pointer transition-all flex flex-col gap-1 ${clickedChats?.has(chat.id) ? 'processed-chat' : 'bg-white hover:bg-indigo-50'} ${(Array.from(keywords).some(k => chat.content.includes(k))) && !clickedChats?.has(chat.id) ? 'keyword-detected' : ''}`}><div className="flex justify-between text-xs mb-1"><span className={`font-bold ${clickedChats?.has(chat.id) ? 'text-gray-500' : 'text-gray-700'}`}>{chat.nickname} {renderSpecialBadge(chat.nickname)}</span><span className="text-gray-400">{chat.time ? new Date(chat.time).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}) : ''}</span></div><div className="text-sm">{chat.content}</div></div>))}</div>
                     </div>
@@ -341,7 +356,7 @@
                                  const isPaidState = (balance <= 0 && grandTotal >= 0 && activeItems.length > 0);
                                  const isOrderConfirmed = checkedOrders?.has(nick) || false;
                                  
-                                 return (<div key={nick} onClick={() => setSelectedNick(prev => prev === nick ? null : nick)} className={`bg-white rounded border shadow-sm transition-all overflow-hidden cursor-pointer ${isSelected ? 'ring-2 ring-indigo-500 shadow-md' : 'hover:border-indigo-300'}`}><div className={`px-2 py-1.5 flex justify-between items-center ${isSelected ? 'bg-indigo-50' : 'bg-gray-50'} border-b border-gray-100`}><div className="flex items-center gap-2"><span className="font-bold text-sm text-gray-800">{nick}</span>{renderSpecialBadge(nick)}<button onClick={(e) => { e.stopPropagation(); addOrderLogic(nick, '', 1); }} className="bg-indigo-100 text-indigo-700 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold hover:bg-indigo-200">+</button><button onClick={(e) => { e.stopPropagation(); toggleCardPayment(nick); }} className={`ml-1 text-[10px] px-1.5 py-0.5 rounded border transition-colors ${isCard ? 'bg-purple-100 border-purple-300 text-purple-700 font-bold' : 'bg-white text-gray-400 hover:bg-gray-100'}`}>카드</button></div><div className="flex items-center gap-2"><span className="font-bold text-sm font-mono text-gray-800">{grandTotal.toLocaleString()}원</span>{isCard ? <span className="bg-purple-100 text-purple-600 px-1.5 rounded text-[10px] font-bold">💳</span> : isPaidState ? <span className="bg-green-100 text-green-700 px-1.5 rounded text-[10px] font-bold">✅ 완납</span> : <span className="bg-orange-100 text-orange-600 px-1.5 rounded text-[10px] font-bold badge-pulse">🔺 {Math.abs(balance).toLocaleString()}</span>}<button onClick={(e) => { e.stopPropagation(); handleOrderCheckToggle(nick); }} className={`px-1.5 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 shadow-sm transition-all border ${isOrderConfirmed ? 'bg-blue-100 text-blue-700 border-blue-300' : 'bg-gray-100 text-gray-400 border-gray-200 hover:bg-gray-200'}`} title="체크"><Icon name={isOrderConfirmed ? "check-square" : "square"} weight={isOrderConfirmed ? "fill" : "regular"}/></button><button onClick={(e) => { e.stopPropagation(); copyOrderSheet(nick, items, grandTotal, depositTotal, balance, isCard); }} className="px-1.5 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 shadow-sm bg-yellow-300 hover:bg-yellow-400 text-black"><Icon name="chat-circle-dots" weight="fill"/> 카톡</button></div></div><div className="p-1 space-y-1">{items.map((item, idx) => { const isZeroPrice = Number(item.price) === 0; const invInfo = inventory && inventory[item.product]; let stockBadge = null; if (invInfo) { const totalOrdered = orders.filter(o => o.product === item.product && !o.isCancelled).reduce((sum, o) => sum + o.quantity, 0); const remaining = invInfo.stock - totalOrdered; if (remaining < 0) stockBadge = <span className="text-red-500 font-bold text-[10px] ml-1 animate-pulse">(재고초과 {remaining})</span>; else if (remaining === 0) stockBadge = <span className="text-red-500 font-bold text-[10px] ml-1">(품절)</span>; else if (remaining <= 2) stockBadge = <span className="text-orange-500 font-bold text-[10px] ml-1">(마감임박 {remaining})</span>; } return (<div key={idx} className={`flex justify-between items-center text-xs p-1 rounded group transition-colors ${item.isCancelled ? 'bg-red-50/80 border border-red-100' : 'hover:bg-gray-50'}`}><div className="flex-1 flex gap-1 items-center">{item.isCancelled && <span className="text-[9px] text-red-500 font-bold shrink-0">[취소]</span>}<input type="text" list="product-list" value={item.product} onChange={(e) => handleProductChange(item.id, 'product', e.target.value)} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => handleProductKeyDown(e, nick, items, idx)} onPaste={e => handleProductPaste(e, nick, items, idx)} data-customer={nick} id={`prod-input-${item.id}`} className={`w-full bg-transparent outline-none px-1 rounded ${item.isCancelled ? 'text-gray-400 line-through' : 'focus:bg-white focus:ring-1 focus:ring-indigo-100'}`} placeholder="상품명" disabled={item.isCancelled} />{stockBadge}</div><div className="flex items-center gap-1"><span onDoubleClick={(e) => { e.stopPropagation(); if (!item.isCancelled) setEditingQuantityId(item.id); }} className={`cursor-pointer font-bold text-indigo-600 hover:bg-indigo-100 ${item.isCancelled ? 'cursor-not-allowed hover:bg-transparent line-through' : ''}`}>{editingQuantityId === item.id ? (<input type="number" defaultValue={item.quantity} autoFocus className="w-8 text-center text-[10px] font-bold text-indigo-600 bg-white border border-indigo-300 rounded outline-none" onBlur={(e) => handleQuantityUpdate(item.id, e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handleQuantityUpdate(item.id, e.currentTarget.value); }} onClick={(e) => e.stopPropagation()} />) : `${item.quantity}개`}</span><input type="number" value={item.price} onChange={(e) => handleProductChange(item.id, 'price', e.target.value)} onClick={(e) => e.stopPropagation()} className={`w-14 text-right font-mono bg-transparent outline-none ${item.isCancelled ? 'line-through text-gray-400' : 'text-gray-500 focus:text-indigo-600'} ${Number(item.price) === 0 && !item.isCancelled ? 'bg-red-50 border-b border-red-300' : ''}`} disabled={item.isCancelled} /><button onClick={(e)=>{e.stopPropagation(); handleOrderDelete(item.id);}} className="text-gray-300 hover:text-red-500 ml-1"><Icon name="trash" weight="bold"/></button></div></div>); })}</div></div>);
+                                 return (<div key={nick} onClick={() => setSelectedNick(prev => prev === nick ? null : nick)} className={`bg-white rounded border shadow-sm transition-all overflow-hidden cursor-pointer ${isSelected ? 'ring-2 ring-indigo-500 shadow-md' : 'hover:border-indigo-300'}`}><div className={`px-2 py-1.5 flex justify-between items-center ${isSelected ? 'bg-indigo-50' : 'bg-gray-50'} border-b border-gray-100`}><div className="flex items-center gap-2"><span className="font-bold text-sm text-gray-800">{nick}</span>{renderSpecialBadge(nick)}<button onClick={(e) => { e.stopPropagation(); addOrderLogic(nick, '', 1); }} className="bg-indigo-100 text-indigo-700 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold hover:bg-indigo-200">+</button><button onClick={(e) => { e.stopPropagation(); toggleCardPayment(nick); }} className={`ml-1 text-[10px] px-1.5 py-0.5 rounded border transition-colors ${isCard ? 'bg-purple-100 border-purple-300 text-purple-700 font-bold' : 'bg-white text-gray-400 hover:bg-gray-100'}`}>카드</button></div><div className="flex items-center gap-2"><span className="font-bold text-sm font-mono text-gray-800">{grandTotal.toLocaleString()}원</span>{isCard ? <span className="bg-purple-100 text-purple-600 px-1.5 rounded text-[10px] font-bold">💳</span> : isPaidState ? <span className="bg-green-100 text-green-700 px-1.5 rounded text-[10px] font-bold">✅ 완납</span> : <span className="bg-orange-100 text-orange-600 px-1.5 rounded text-[10px] font-bold badge-pulse">🔺 {Math.abs(balance).toLocaleString()}</span>}<button onClick={(e) => { e.stopPropagation(); handleOrderCheckToggle(nick); }} className={`px-1.5 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 shadow-sm transition-all border ${isOrderConfirmed ? 'bg-blue-100 text-blue-700 border-blue-300' : 'bg-gray-100 text-gray-400 border-gray-200 hover:bg-gray-200'}`} title="체크"><Icon name={isOrderConfirmed ? "check-square" : "square"} weight={isOrderConfirmed ? "fill" : "regular"}/></button><button onClick={(e) => { e.stopPropagation(); copyOrderSheet(nick, items, grandTotal, depositTotal, balance, isCard); }} className="px-1.5 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 shadow-sm bg-yellow-300 hover:bg-yellow-400 text-black"><Icon name="chat-circle-dots" weight="fill"/> 카톡</button></div></div><div className="p-1 space-y-1">{items.map((item, idx) => { const isZeroPrice = Number(item.price) === 0; const invInfo = inventory && inventory[item.product]; let stockBadge = null; if (invInfo) { const totalOrdered = orders.filter(o => o.product === item.product && !o.isCancelled).reduce((sum, o) => sum + o.quantity, 0); const remaining = invInfo.stock - totalOrdered; if (remaining < 0) stockBadge = <span className="text-red-500 font-bold text-[10px] ml-1 animate-pulse">(재고초과 {remaining})</span>; else if (remaining === 0) stockBadge = <span className="text-red-500 font-bold text-[10px] ml-1">(품절)</span>; else if (remaining <= 2) stockBadge = <span className="text-orange-500 font-bold text-[10px] ml-1">(마감임박 {remaining})</span>; } return (<div key={idx} className={`flex justify-between items-center text-xs p-1 rounded group transition-colors ${item.isCancelled ? 'bg-red-50/80 border border-red-100' : 'hover:bg-gray-50'}`}><div className="flex-1 flex gap-1 items-center">{item.isCancelled && <span className="text-[9px] text-red-500 font-bold shrink-0">[취소]</span>}<input type="text" list="product-list" value={item.product} onChange={(e) => handleProductChange(item.id, 'product', e.target.value)} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => handleProductKeyDown(e, nick, items, idx)} onPaste={e => handleProductPaste(e, nick, items, idx)} data-customer={nick} id={`prod-input-${item.id}`} className={`w-full bg-transparent outline-none px-1 rounded ${item.isCancelled ? 'text-gray-400 line-through' : 'focus:bg-white focus:ring-1 focus:ring-indigo-100'}`} placeholder="상품명" disabled={item.isCancelled} />{stockBadge}</div><div className="flex items-center gap-1"><span onDoubleClick={(e) => { e.stopPropagation(); if (!item.isCancelled) setEditingQuantityId(item.id); }} className={`cursor-pointer font-bold text-indigo-600 hover:bg-indigo-100 ${item.isCancelled ? 'cursor-not-allowed hover:bg-transparent line-through' : ''}`}>{editingQuantityId === item.id ? (<input type="number" defaultValue={item.quantity} autoFocus className="w-8 text-center text-[10px] font-bold text-indigo-600 bg-white border border-indigo-300 rounded outline-none" onBlur={(e) => handleQuantityUpdate(item.id, e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handleQuantityUpdate(item.id, e.currentTarget.value); }} onClick={(e) => e.stopPropagation()} />) : `${item.quantity}개`}</span><input type="number" value={item.price} onChange={(e) => handleProductChange(item.id, 'price', e.target.value)} onClick={(e) => e.stopPropagation()} className={`w-14 text-right font-mono bg-transparent outline-none ${item.isCancelled ? 'line-through text-gray-400' : 'text-gray-500 focus:text-indigo-600'} ${Number(item.price) === 0 && !item.isCancelled ? 'bg-red-50 border-b border-red-300' : ''}`} disabled={item.isCancelled} /><button onClick={(e)=>{e.stopPropagation(); handleOrderCancel(item.id);}} className={`ml-1 ${item.isCancelled ? "text-blue-500 hover:text-blue-700" : "text-gray-300 hover:text-red-500"}`} title={item.isCancelled ? "취소 철회" : "주문 취소"}><Icon name={item.isCancelled ? "arrow-u-up-left" : "prohibit"} weight="bold"/></button><button onClick={(e)=>{e.stopPropagation(); handleOrderDelete(item.id);}} className="text-gray-300 hover:text-red-500 ml-1"><Icon name="trash" weight="bold"/></button></div></div>); })}</div></div>);
                              })}
                         </div>
                     </div>
@@ -434,6 +449,7 @@
                 return addresses.find(a => normalizeString(a.nickname) === normalizeString(nick));
             };
 
+            // 1. 발주용 품목 집계 (오름차순)
             const handleExportProducts = () => { 
                 const summary = {}; 
                 const unpaidSummary = {}; 
@@ -471,6 +487,7 @@
                 downloadExcel(data, '상품별_발주리스트'); 
             };
 
+            // 2. 배송용 고객 리스트 (미입금 포함, 노쇼 표시, 정렬)
             const handleExportCustomers = () => { 
                 const groups = {}; 
                 orders.forEach(o => { if (!groups[o.customer]) groups[o.customer] = []; groups[o.customer].push(o); }); 
@@ -497,20 +514,21 @@
                     const addrInfo = findAddress(nick) || {}; 
                     const fullAddress = addrInfo.zipcode ? `(${addrInfo.zipcode}) ${addrInfo.address || ''}` : (addrInfo.address || ''); 
                     
+                    // ✅ [수정] 미입금 시 C열 및 메모에 표시
                     const statusColumn = isPaid ? "" : "미입금";
                     const notePrefix = (!isPaid) ? "[❌미입금/노쇼] " : "";
-                    // 배송 메모 원본 그대로 사용 (notePrefix 제거)
                     
+                    // ✅ [수정] 배송메모는 사용자가 입력한 그대로 출력 (notePrefix 제거)
                     const createRow = (productValue) => ({ 
                         '날짜시간': new Date().toLocaleString(), 
                         '공란1': '', 
-                        '입금상태': statusColumn,  
+                        '입금상태': statusColumn,  // C열
                         '닉네임': nick, 
                         '주문제품(수량)': productValue, 
                         '이름': addrInfo.realname || '', 
                         '핸드폰번호': addrInfo.phone || '', 
                         '주소': fullAddress, 
-                        '배송메모': (addrInfo.memo || '') 
+                        '배송메모': addrInfo.memo || '' // ✅ 원본 메모 그대로 유지
                     }); 
                     excelRows.push(createRow(`[ ${nick} ]`)); 
                     items.forEach(item => { const qtyPart = item.quantity > 1 ? ` ★ ${item.quantity}개` : ''; excelRows.push(createRow(`${item.product}${qtyPart}`)); }); 
@@ -518,13 +536,14 @@
                 downloadExcel(excelRows, '고객별_정산_배송리스트'); 
             };
 
+            // 3. 미입금자 상세 리스트 (상품별 1줄씩 Unstack)
             const handleExportUnpaid = () => {
                 const groups = {}; 
                 orders.forEach(o => { if (!groups[o.customer]) groups[o.customer] = []; groups[o.customer].push(o); });
                 
                 const data = [];
                 Object.entries(groups).forEach(([nick, items]) => {
-                    if (cardPayments && cardPayments[nick]) return; 
+                    if (cardPayments && cardPayments[nick]) return; // 카드 제외
                     
                     const activeItems = items.filter(i => !i.isCancelled);
                     if (activeItems.length === 0) return;
@@ -535,11 +554,13 @@
                     const depositTotal = items.reduce((sum, i) => sum + (i.deposit || 0), 0);
                     const balance = grandTotal - depositTotal;
                     
-                    if (balance > 0) { 
+                    if (balance > 0) { // 미입금자만
                         const depositStatus = depositTotal > 0 ? `부분입금(${depositTotal.toLocaleString()}원)` : '미입금';
                         
                         activeItems.forEach(item => {
+                            // ✅ [수정] 상품별 한 줄씩 생성
                             const unitPrice = item.quantity > 0 ? item.price / item.quantity : 0;
+                            // 2개 이상일 때만 수량 표시
                             const prodNameDisplay = item.quantity > 1 ? `${item.product} (${item.quantity}개)` : item.product;
                             
                             data.push({
@@ -556,7 +577,8 @@
                 data.sort((a, b) => a['닉네임'].localeCompare(b['닉네임']));
                 downloadExcel(data, '미입금자_상세리스트');
            };
-           const fileInputRef = useRef(null);
+           
+           const fileInputRef = useRef(null); // ✅ useRef 추가
 
             return (
                 <div className="flex flex-col items-center justify-center h-full p-10 gap-6 overflow-y-auto">
@@ -624,9 +646,10 @@
                     openModal("방송 데이터가 초기화되었습니다.\n(고객 정보와 재고는 안전하게 보존되었습니다.)", 'alert');
                 });
             };
-
+            
             const handleExportBackup = () => { const backupData = { date: new Date().toISOString(), orders, productHistory, shippingOverrides, cardPayments, matchedDeposits: [...matchedDeposits], clickedChats: [...clickedChats], sentAddressRequests: [...sentAddressRequests], deletedDepositIds: [...deletedDepositIds], checkedOrders: [...checkedOrders], addressMapping, specialCustomers, inventory, templateConfig, depositorNames, keywords: [...keywords] }; const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData)); const downloadAnchorNode = document.createElement('a'); downloadAnchorNode.setAttribute("href", dataStr); downloadAnchorNode.setAttribute("download", "kallo_backup_" + new Date().toISOString().slice(0,10) + ".json"); document.body.appendChild(downloadAnchorNode); downloadAnchorNode.click(); downloadAnchorNode.remove(); };
             const handleImportBackup = (e) => { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (event) => { try { const data = JSON.parse(event.target.result); openModal("백업 데이터를 불러오시겠습니까?", 'confirm', () => { if(data.orders) setOrders(data.orders); if(data.productHistory) setProductHistory(data.productHistory); if(data.shippingOverrides) setShippingOverrides(data.shippingOverrides); if(data.cardPayments) setCardPayments(data.cardPayments); if(data.matchedDeposits) setMatchedDeposits(new Set(data.matchedDeposits)); if(data.clickedChats) setClickedChats(new Set(data.clickedChats)); if(data.sentAddressRequests) setSentAddressRequests(new Set(data.sentAddressRequests)); if(data.deletedDepositIds) setDeletedDepositIds(new Set(data.deletedDepositIds)); if(data.checkedOrders) setCheckedOrders(new Set(data.checkedOrders)); if(data.addressMapping) setAddressMapping(data.addressMapping); if(data.specialCustomers) setSpecialCustomers(data.specialCustomers); if(data.inventory) setInventory(data.inventory); if(data.templateConfig) setTemplateConfig(data.templateConfig); if(data.depositorNames) setDepositorNames(data.depositorNames); if(data.keywords) setKeywords(new Set(data.keywords)); openModal("복구 완료!", 'alert'); }); } catch(err) { openModal("파일 읽기 실패", 'alert'); } }; reader.readAsText(file); e.target.value = ''; };
+
 
             if (!isLoggedIn) return <LoginScreen onLogin={() => setIsLoggedIn(true)} />;
 
