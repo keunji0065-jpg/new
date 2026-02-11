@@ -3,10 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- ✅ 캐시 방지 메타 태그 -->
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>깔로 주문서 PRO (카톡버튼_확대이동)</title>
+    <title>깔로 주문서 PRO (최종_UI개선)</title>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin="anonymous"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js" crossorigin="anonymous"></script>
@@ -433,24 +434,22 @@
                                  const isCard = cardPayments[nick];
                                  const isPaidState = (balance <= 0 && grandTotal >= 0 && activeItems.length > 0);
                                  const isOrderConfirmed = checkedOrders?.has(nick) || false;
-                                 
-                                 // ✅ [복구됨] statusBadge 정의
-                                 let statusBadge;
-                                 if (isCard) statusBadge = <span className="bg-purple-100 text-purple-600 px-1.5 rounded text-[10px] font-bold border border-purple-200">💳 카드</span>;
-                                 else if (depositTotal === 0) statusBadge = <span className="bg-red-100 text-red-600 px-1.5 rounded text-[10px] font-bold">미입금</span>;
-                                 else if (isPaidState) statusBadge = <span className="bg-green-100 text-green-700 px-1.5 rounded text-[10px] font-bold">✅ 완납</span>;
-                                 else statusBadge = <span className="bg-orange-100 text-orange-600 px-1.5 rounded text-[10px] font-bold badge-pulse">🔺 {Math.abs(balance).toLocaleString()}원</span>;
 
-                                 // ✅ [복구됨] 개별 변수 정의
+                                 // ✅ [복구됨] 상태 표시 로직 변경 (텍스트 배지 삭제, 색상으로 구분)
+                                 const borderClass = isCard ? 'border-purple-300 ring-1 ring-purple-300 bg-purple-50' : (isPaidState ? 'border-green-300 ring-1 ring-green-300' : 'border-gray-200');
+                                 const nickColorClass = isCard ? 'text-purple-700' : (isPaidState ? 'text-green-700' : 'text-gray-800');
+                                 const headerBgClass = isCard ? 'bg-purple-50' : (isPaidState ? 'bg-green-50' : (isSelected ? 'bg-indigo-50' : 'bg-gray-50'));
+
                                  const isEditingShipping = editingShippingNick === nick;
                                  const depositorName = depositorNames[nick];
                                  const addr = findAddress(nick);
                                  const suggestions = findAddressSuggestions(nick);
 
-                                 return (<div key={nick} onClick={() => setSelectedNick(prev => prev === nick ? null : nick)} className={`bg-white rounded border shadow-sm transition-all overflow-hidden cursor-pointer ${isSelected ? 'ring-2 ring-indigo-500 shadow-md' : 'hover:border-indigo-300'}`}><div className={`px-2 py-1.5 flex justify-between items-center ${isSelected ? 'bg-indigo-50' : 'bg-gray-50'} border-b border-gray-100`}>
+                                 return (<div key={nick} onClick={() => setSelectedNick(prev => prev === nick ? null : nick)} className={`bg-white rounded border shadow-sm transition-all overflow-hidden cursor-pointer ${isSelected ? 'ring-2 ring-indigo-500 shadow-md' : ''} ${borderClass}`}>
+                                    <div className={`px-2 py-1.5 flex justify-between items-center border-b border-gray-100 ${headerBgClass}`}>
                                      <div className="flex flex-col gap-0.5">
                                          <div className="flex items-center gap-2">
-                                            <span className="font-bold text-sm text-gray-800">{nick}</span>
+                                            <span className={`font-bold text-sm ${nickColorClass}`}>{nick}</span>
                                             {renderSpecialBadge(nick)}
                                             
                                             {/* ✅ [복구됨] 버튼들 */}
@@ -511,9 +510,10 @@
                                          </div>
                                      </div>
                                      <div className="flex flex-col gap-1 items-end">
-                                        <div className="flex items-center gap-2"><span className="font-bold text-sm font-mono text-gray-800">{grandTotal.toLocaleString()}원</span>{statusBadge}</div>
+                                        <div className="flex items-center gap-2"><span className={`font-bold text-sm font-mono ${isPaidState ? 'text-green-700' : (balance > 0 ? 'text-red-500' : 'text-gray-800')}`}>{grandTotal.toLocaleString()}원</span></div>
                                         <div className="flex items-center gap-1">
-                                            <button onClick={(e) => { e.stopPropagation(); handleOrderCheckToggle(nick); }} className={`px-1.5 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 shadow-sm transition-all border ${isOrderConfirmed ? 'bg-blue-100 text-blue-700 border-blue-300' : 'bg-gray-100 text-gray-400 border-gray-200 hover:bg-gray-200'}`} title="체크"><Icon name={isOrderConfirmed ? "check-square" : "square"} weight={isOrderConfirmed ? "fill" : "regular"}/></button>
+                                            {/* ✅ [수정] 체크박스: 카톡 아래, 연한 파란색, '주문서' 텍스트 */}
+                                            <button onClick={(e) => { e.stopPropagation(); handleOrderCheckToggle(nick); }} className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 shadow-sm transition-all border ${isOrderConfirmed ? 'bg-blue-100 text-blue-700 border-blue-300' : 'bg-blue-50 text-blue-400 border-blue-100 hover:bg-blue-100'}`} title="주문 확인 체크"><Icon name={isOrderConfirmed ? "check-square" : "square"} weight={isOrderConfirmed ? "fill" : "regular"}/> 주문서</button>
                                         </div>
                                      </div>
                                  </div><div className="p-1 space-y-1">{items.map((item, idx) => { const isZeroPrice = Number(item.price) === 0; const invInfo = inventory && inventory[item.product]; let stockBadge = null; if (invInfo) { const totalOrdered = orders.filter(o => o.product === item.product && !o.isCancelled).reduce((sum, o) => sum + o.quantity, 0); const remaining = invInfo.stock - totalOrdered; if (remaining < 0) stockBadge = <span className="text-red-500 font-bold text-[10px] ml-1 animate-pulse">(재고초과 {remaining})</span>; else if (remaining === 0) stockBadge = <span className="text-red-500 font-bold text-[10px] ml-1">(품절)</span>; else if (remaining <= 2) stockBadge = <span className="text-orange-500 font-bold text-[10px] ml-1">(마감임박 {remaining})</span>; } return (<div key={idx} className={`flex justify-between items-center text-xs p-1 rounded group transition-colors ${item.isCancelled ? 'bg-red-50/80 border border-red-100' : 'hover:bg-gray-50'}`}><div className="flex-1 flex gap-1 items-center">{item.isCancelled && <span className="text-[9px] text-red-500 font-bold shrink-0">[취소]</span>}<input type="text" list="product-list" value={item.product} onChange={(e) => handleProductChange(item.id, 'product', e.target.value)} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => handleProductKeyDown(e, nick, items, idx)} onPaste={e => handleProductPaste(e, nick, items, idx)} data-customer={nick} id={`prod-input-${item.id}`} className={`w-full bg-transparent outline-none px-1 rounded ${item.isCancelled ? 'text-gray-400 line-through' : 'focus:bg-white focus:ring-1 focus:ring-indigo-100'}`} placeholder="상품명" disabled={item.isCancelled} />{stockBadge}</div><div className="flex items-center gap-1"><span onDoubleClick={(e) => { e.stopPropagation(); if (!item.isCancelled) setEditingQuantityId(item.id); }} className={`cursor-pointer font-bold text-indigo-600 hover:bg-indigo-100 ${item.isCancelled ? 'cursor-not-allowed hover:bg-transparent line-through' : ''}`}>{editingQuantityId === item.id ? (<input type="number" defaultValue={item.quantity} autoFocus className="w-8 text-center text-[10px] font-bold text-indigo-600 bg-white border border-indigo-300 rounded outline-none" onBlur={(e) => handleQuantityUpdate(item.id, e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handleQuantityUpdate(item.id, e.currentTarget.value); }} onClick={(e) => e.stopPropagation()} />) : `${item.quantity}개`}</span><input type="number" value={item.price} onChange={(e) => handleProductChange(item.id, 'price', e.target.value)} onClick={(e) => e.stopPropagation()} className={`w-14 text-right font-mono bg-transparent outline-none ${item.isCancelled ? 'line-through text-gray-400' : 'text-gray-500 focus:text-indigo-600'} ${Number(item.price) === 0 && !item.isCancelled ? 'bg-red-50 border-b border-red-300' : ''}`} disabled={item.isCancelled} /><button onClick={(e)=>{e.stopPropagation(); handleOrderCancel(item.id);}} className={`ml-1 ${item.isCancelled ? "text-blue-500 hover:text-blue-700" : "text-gray-300 hover:text-red-500"}`} title={item.isCancelled ? "취소 철회" : "주문 취소"}><Icon name={item.isCancelled ? "arrow-u-up-left" : "prohibit"} weight="bold"/></button><button onClick={(e)=>{e.stopPropagation(); handleOrderDelete(item.id);}} className="text-gray-300 hover:text-red-500 ml-1"><Icon name="trash" weight="bold"/></button></div></div>); })}</div></div>);
