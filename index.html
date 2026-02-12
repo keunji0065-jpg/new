@@ -8,7 +8,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     
-    <title>깔로 주문서 PRO (Gemini AI 스마트 매칭 고도화)</title>
+    <title>깔로 주문서 PRO (Gemini AI + 스마트 매칭 통합)</title>
     
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin="anonymous"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
@@ -135,7 +135,7 @@
             if (!isOpen) return null;
             return (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] animate-pop" onClick={type === 'alert' ? () => onConfirm() : undefined}>
-                    <div className="bg-white rounded-xl shadow-2xl p-6 w-80 max-w-sm" onClick={e => e.stopPropagation()}>
+                    <div className="bg-white rounded-xl shadow-2xl p-6 w-80 max-sm" onClick={e => e.stopPropagation()}>
                         <div className="mb-4">
                             <h3 className="text-lg font-bold text-center text-gray-800 mb-2">{type === 'confirm' ? '확인' : type === 'prompt' ? '입력' : '알림'}</h3>
                             <p className="text-sm text-gray-600 text-center whitespace-pre-wrap leading-relaxed">{message}</p>
@@ -219,31 +219,20 @@
 
             const allDeposits = useMemo(() => [...manualDeposits, ...serverDeposits], [manualDeposits, serverDeposits]);
             
-            // 스마트 자동 매칭 로직 (이름 + 금액 일치 확인 완벽 적용)
-            const ordersRef = useRef(orders);
-            const depositorNamesRef = useRef(depositorNames);
-            const matchedDepositsRef = useRef(matchedDeposits);
-            const shippingOverridesRef = useRef(shippingOverrides);
-            const quickShippingRef = useRef(quickShipping);
-
-            useEffect(() => { ordersRef.current = orders; }, [orders]);
-            useEffect(() => { depositorNamesRef.current = depositorNames; }, [depositorNames]);
-            useEffect(() => { matchedDepositsRef.current = matchedDeposits; }, [matchedDeposits]);
-            useEffect(() => { shippingOverridesRef.current = shippingOverrides; }, [shippingOverrides]);
-            useEffect(() => { quickShippingRef.current = quickShipping; }, [quickShipping]);
-
+            // ✅ [수정] 스마트 입금 자동 매칭 로직 (주문 목록 변화에도 즉시 반응하도록 수정)
             useEffect(() => {
-                if (allDeposits.length === 0 || ordersRef.current.length === 0) return;
+                if (allDeposits.length === 0 || orders.length === 0) return;
 
-                let updatedOrders = [...ordersRef.current];
-                let newMatchedIds = new Set(matchedDepositsRef.current);
+                let updatedOrders = [...orders];
+                let newMatchedIds = new Set(matchedDeposits);
                 let hasChanges = false;
 
+                // 1. 현재 고객별 잔액 실시간 계산
                 const customerBalances = {};
                 updatedOrders.forEach(o => {
                     if (o.isCancelled) return;
                     if (!customerBalances[o.customer]) {
-                        const currentShipping = shippingOverridesRef.current[o.customer] !== undefined ? shippingOverridesRef.current[o.customer] : Number(quickShippingRef.current);
+                        const currentShipping = shippingOverrides[o.customer] !== undefined ? shippingOverrides[o.customer] : Number(quickShipping);
                         customerBalances[o.customer] = { productTotal: 0, depositTotal: 0, shipping: currentShipping, activeItemsCount: 0 };
                     }
                     customerBalances[o.customer].productTotal += Number(o.price);
@@ -257,19 +246,22 @@
                     cb.balance = cb.grandTotal - cb.depositTotal;
                 });
 
+                // 2. 입금 내역 순회하며 자동 매칭 시도
                 allDeposits.forEach(deposit => {
                     if (newMatchedIds.has(deposit.id) || deletedDepositIds.has(deposit.id)) return;
 
                     const depositNameClean = normalizeString(deposit.name);
-                    if (depositNameClean.length < 2) return; 
+                    if (depositNameClean.length < 1) return; 
 
                     let exactMatches = [];
                     Object.keys(customerBalances).forEach(nick => {
-                        const savedRealName = depositorNamesRef.current[nick] ? normalizeString(depositorNamesRef.current[nick]) : '';
+                        const savedRealName = depositorNames[nick] ? normalizeString(depositorNames[nick]) : '';
                         const nickClean = normalizeString(nick);
-                        if (savedRealName === depositNameClean || 
-                            nickClean === depositNameClean || 
-                            (depositNameClean.length >= 2 && nickClean.length >= 2 && (nickClean.includes(depositNameClean) || depositNameClean.includes(nickClean)))) {
+                        
+                        // 이름 매칭 (실명 또는 닉네임)
+                        if (savedRealName === depositNameClean || nickClean === depositNameClean) {
+                            exactMatches.push(nick);
+                        } else if (depositNameClean.length >= 2 && nickClean.length >= 2 && (nickClean.includes(depositNameClean) || depositNameClean.includes(nickClean))) {
                             exactMatches.push(nick);
                         }
                     });
@@ -281,6 +273,7 @@
                     if (exactMatches.length === 1) {
                         matchedCustomer = exactMatches[0];
                     } else if (exactMatches.length > 1) {
+                        // 동명이인이 있는 경우, 부족한 잔액이 입금액과 완벽히 일치하는 사람만 자동 매칭
                         const amountMatches = exactMatches.filter(nick => customerBalances[nick].balance === depositAmount);
                         if (amountMatches.length === 1) {
                             matchedCustomer = amountMatches[0];
@@ -297,8 +290,10 @@
                             return o;
                         });
                         
+                        // 가상 잔액 업데이트 (연속 입금건 처리용)
                         customerBalances[matchedCustomer].depositTotal += depositAmount;
                         customerBalances[matchedCustomer].balance -= depositAmount;
+                        
                         newMatchedIds.add(deposit.id);
                         hasChanges = true;
                     }
@@ -308,7 +303,7 @@
                     setOrders(updatedOrders);
                     setMatchedDeposits(newMatchedIds);
                 }
-            }, [allDeposits, deletedDepositIds]);
+            }, [allDeposits, orders, matchedDeposits, deletedDepositIds, depositorNames, shippingOverrides, quickShipping]); // 의존성 배열 보강
 
             const findAddress = (nick) => {
                 if (addressMapping[nick]) return addresses.find(a => normalizeString(a.nickname) === normalizeString(addressMapping[nick]));
@@ -323,7 +318,7 @@
                     return cleanAddrNick !== cleanNick && (cleanAddrNick.includes(cleanNick) || cleanNick.includes(cleanAddrNick));
                 }).map(a => a.nickname).slice(0, 3);
             };
-            const getSpecialCustomer = (nick) => {
+             const getSpecialCustomer = (nick) => {
                 if (!specialCustomers) return null;
                 const nickNorm = normalizeString(nick);
                 const key = Object.keys(specialCustomers).find(k => normalizeString(k) === nickNorm);
@@ -363,17 +358,17 @@
                 });
             };
             
-            // ✅ [수정] Gemini API 스마트 매칭 고도화
+            // ✅ Gemini API 스마트 매칭 고도화 (이름 일부 매칭 및 폴백 강화)
             const handleAIParsing = async (chat) => {
                 if (!GEMINI_API_KEY) {
-                    if (!isAIAutoMode) openModal("Gemini API 키가 소스코드에 설정되지 않았습니다.", 'alert');
+                    if (!isAIAutoMode) openModal("Gemini API 키가 설정되지 않았습니다.", 'alert');
                     setIsAIAutoMode(false);
                     return;
                 }
 
                 const productNames = Object.keys(inventory).join(', ');
                 if (!productNames) {
-                    if (!isAIAutoMode) openModal("재고/발주 현황 탭에 상품을 먼저 등록해야 AI가 인식할 수 있습니다.", 'alert');
+                    if (!isAIAutoMode) openModal("재고/발주 현황 탭에 상품을 먼저 등록해야 AI가 분석할 수 있습니다.", 'alert');
                     setIsAIAutoMode(false);
                     return;
                 }
@@ -411,7 +406,6 @@
                     const parsedItems = JSON.parse(resultText);
 
                     if (!Array.isArray(parsedItems) || parsedItems.length === 0) {
-                         // ✅ 매칭 실패 시 원본 댓글 그대로 폴백 (알림 없이 조용히 추가)
                          addOrderLogic(chat.nickname, chat.content, 1, true);
                     } else {
                          parsedItems.forEach(item => {
@@ -423,18 +417,17 @@
                     setClickedChats(prev => new Set(prev).add(chat.id));
                 } catch (error) {
                     console.error("AI 파싱 에러:", error);
-                    addOrderLogic(chat.nickname, chat.content, 1, true); // 에러 시 원본 그대로 추가
+                    addOrderLogic(chat.nickname, chat.content, 1, true);
                     setClickedChats(prev => new Set(prev).add(chat.id)); 
                 } finally {
                     setAnalyzingChatIds(prev => { const next = new Set(prev); next.delete(chat.id); return next; });
                 }
             };
 
-            // ✅ AI 자동모드 감지 (키워드 매칭 시 발동)
+            // AI 자동모드 감지
             useEffect(() => {
                 if (!isAIAutoMode) return;
                 
-                // 키워드를 공백으로 분리하여 각각 감지 (예: '바지 66 77' 입력 시 '바지'나 '77'만 있어도 감지)
                 const keywordArray = Array.from(keywords).flatMap(k => k.split(/\s+/)).filter(k => k.trim().length > 0);
                 if (keywordArray.length === 0) return; 
                 
@@ -450,9 +443,7 @@
             }, [chats, isAIAutoMode, clickedChats, analyzingChatIds, keywords]);
 
 
-            // ✅ 수동 클릭 처리 (원본 댓글 그대로 추가됨)
             const handleChatClick = (chat) => { setClickedChats(prev => new Set(prev).add(chat.id)); addOrderLogic(chat.nickname, chat.content, 1, true); };
-            
             const handleManualSubmit = (e) => { 
                 e.preventDefault(); 
                 if (!manualNick.trim()) return openModal("닉네임을 입력해주세요.", 'alert'); 
@@ -1194,7 +1185,6 @@
                     </div> 
 
                     <div className="flex-1 overflow-y-auto bg-gray-50 flex flex-col relative"> 
-                        {/* Header */}
                         <div className="flex justify-between items-center px-4 py-2 bg-gray-200 border-b text-xs font-bold text-gray-600 sticky top-0 z-10 shadow-sm">
                             <div className="w-24 pl-2">날짜</div>
                             <div className="w-32">닉네임</div>
@@ -1202,7 +1192,6 @@
                             <div className="w-16 text-center">완료</div>
                             <div className="w-16 text-center">삭제</div>
                         </div>
-                        {/* Data List */}
                         <div className="flex-1 pb-4">
                             {csData.length === 0 ? (
                                 <div className="text-center text-gray-400 p-10 flex flex-col items-center gap-2">
@@ -1231,7 +1220,6 @@
                         </div> 
                     </div> 
 
-                    {/* 🚀 하단 고정 추가 영역 (엑셀 스타일) */}
                     <div className="px-4 py-3 bg-indigo-50/80 border-t border-indigo-200 flex gap-4 items-center z-20 shadow-[0_-4px_10px_-2px_rgba(0,0,0,0.05)]">
                         <div className="flex-1 flex items-center gap-4">
                             <input type="text" id="new-cs-nick" value={newNick} onChange={e=>setNewNick(e.target.value)} onKeyDown={e=>e.key==='Enter'&&document.getElementById('new-cs-content').focus()} className="w-32 border-2 border-indigo-100 rounded-md px-3 py-2 text-sm outline-none focus:border-indigo-400 focus:ring-2 ring-indigo-100 shadow-inner bg-white font-bold text-indigo-900 placeholder-indigo-300 transition-all" placeholder="닉네임" />
@@ -1249,7 +1237,6 @@
 
         const OrderManagementTab = ({ orders, shippingOverrides, quickShipping, addresses, handleExportBackup, handleImportBackup, addressMapping, cardPayments }) => {
             const fileInputRef = useRef(null);
-            
             const findAddress = (nick) => {
                 if (addressMapping[nick]) return addresses.find(a => normalizeString(a.nickname) === normalizeString(addressMapping[nick]));
                 return addresses.find(a => normalizeString(a.nickname) === normalizeString(nick));
