@@ -8,7 +8,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     
-    <title>깔로 주문서 PRO (디자인 단일화 완료)</title>
+    <title>깔로 주문서 PRO (스마트 자동매칭 완벽수정)</title>
     
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin="anonymous"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
@@ -212,6 +212,94 @@
 
             const allDeposits = useMemo(() => [...manualDeposits, ...serverDeposits], [manualDeposits, serverDeposits]);
             
+            // 스마트 자동 매칭 로직 (이름 + 금액 일치 확인 완벽 적용)
+            useEffect(() => {
+                if (allDeposits.length === 0 || orders.length === 0) return;
+
+                let updatedOrders = [...orders];
+                let newMatchedIds = new Set(matchedDeposits);
+                let hasChanges = false;
+
+                // 1. 현재 고객별 잔액 계산
+                const customerBalances = {};
+                updatedOrders.forEach(o => {
+                    if (o.isCancelled) return;
+                    if (!customerBalances[o.customer]) {
+                        const currentShipping = shippingOverrides[o.customer] !== undefined ? shippingOverrides[o.customer] : Number(quickShipping);
+                        customerBalances[o.customer] = { productTotal: 0, depositTotal: 0, shipping: currentShipping, activeItemsCount: 0 };
+                    }
+                    customerBalances[o.customer].productTotal += Number(o.price);
+                    customerBalances[o.customer].depositTotal += (o.deposit || 0);
+                    customerBalances[o.customer].activeItemsCount += 1;
+                });
+
+                Object.keys(customerBalances).forEach(nick => {
+                    const cb = customerBalances[nick];
+                    cb.grandTotal = cb.productTotal + (cb.activeItemsCount > 0 ? cb.shipping : 0);
+                    cb.balance = cb.grandTotal - cb.depositTotal;
+                });
+
+                // 2. 입금 내역 순회하며 자동 매칭
+                allDeposits.forEach(deposit => {
+                    if (newMatchedIds.has(deposit.id) || deletedDepositIds.has(deposit.id)) return;
+
+                    const depositNameClean = normalizeString(deposit.name);
+                    if (depositNameClean.length < 2) return; 
+
+                    let exactMatches = [];
+                    
+                    Object.keys(customerBalances).forEach(nick => {
+                        const savedRealName = depositorNames[nick] ? normalizeString(depositorNames[nick]) : '';
+                        const nickClean = normalizeString(nick);
+                        // 완전 일치 또는 부분 포함(수동 매칭 기준과 동일)
+                        if (savedRealName === depositNameClean || 
+                            nickClean === depositNameClean || 
+                            (depositNameClean.length >= 2 && nickClean.length >= 2 && (nickClean.includes(depositNameClean) || depositNameClean.includes(nickClean)))) {
+                            exactMatches.push(nick);
+                        }
+                    });
+
+                    exactMatches = [...new Set(exactMatches)]; // 중복 제거
+                    let matchedCustomer = null;
+                    const depositAmount = Number(deposit.amount);
+
+                    if (exactMatches.length === 1) {
+                        // 딱 1명만 검색되면 매칭
+                        matchedCustomer = exactMatches[0];
+                    } else if (exactMatches.length > 1) {
+                        // 동명이인 등 여러 명 검색되면 '잔액'이 일치하는 사람을 매칭
+                        const amountMatches = exactMatches.filter(nick => customerBalances[nick].balance === depositAmount);
+                        if (amountMatches.length === 1) {
+                            matchedCustomer = amountMatches[0];
+                        }
+                    }
+
+                    if (matchedCustomer) {
+                        let applied = false;
+                        updatedOrders = updatedOrders.map(o => {
+                            if (o.customer === matchedCustomer && !applied) {
+                                applied = true;
+                                return { ...o, deposit: (o.deposit || 0) + depositAmount };
+                            }
+                            return o;
+                        });
+                        
+                        // 현재 루프에서 해당 고객 잔액 최신화 (연속 입금건 처리 대비)
+                        customerBalances[matchedCustomer].depositTotal += depositAmount;
+                        customerBalances[matchedCustomer].balance -= depositAmount;
+                        
+                        newMatchedIds.add(deposit.id);
+                        hasChanges = true;
+                    }
+                });
+
+                // 무한 루프 방지를 위해 변경점이 있을 때만 State 업데이트
+                if (hasChanges) {
+                    setOrders(updatedOrders);
+                    setMatchedDeposits(newMatchedIds);
+                }
+            }, [allDeposits, orders, matchedDeposits, depositorNames, deletedDepositIds, shippingOverrides, quickShipping]);
+
             const findAddress = (nick) => {
                 if (addressMapping[nick]) return addresses.find(a => normalizeString(a.nickname) === normalizeString(addressMapping[nick]));
                 return addresses.find(a => normalizeString(a.nickname) === normalizeString(nick));
@@ -258,10 +346,8 @@
                 setOrders(prev => {
                     if (!forceNewRow && initialProduct !== '') {
                         const existIdx = prev.findIndex(o => o.customer === cleanNick && o.product === initialProduct && !o.isCancelled);
-                        // 새로 추가/병합될 때 isUnmodified: true 할당
                         if (existIdx >= 0) { const next = [...prev]; next[existIdx] = { ...next[existIdx], quantity: next[existIdx].quantity + qty, price: (next[existIdx].quantity + qty) * initialPrice, isUnmodified: true }; return next; }
                     }
-                    // 새로운 줄 추가될 때 isUnmodified: true 할당
                     const newOrder = { id: Date.now(), customer: cleanNick, product: initialProduct, quantity: qty, price: initialPrice, deposit: 0, originalText: initialProduct, isCancelled: false, isUnmodified: true };
                     return [newOrder, ...prev];
                 });
@@ -336,13 +422,12 @@
                      }
                 }
             };
+
             const handleDeleteManualDeposit = (id) => { openModal("삭제하시겠습니까?", 'confirm', () => { setManualDeposits(prev => prev.filter(d => d.id !== id)); setMatchedDeposits(prev => { const next = new Set(prev); next.delete(id); return next; }); }); };
             const handleDeleteDepositItem = (id) => { openModal("숨기시겠습니까?", 'confirm', () => { setManualDeposits(prev => prev.filter(d => d.id !== id)); setDeletedDepositIds(prev => new Set(prev).add(id)); setMatchedDeposits(prev => { const next = new Set(prev); next.delete(id); return next; }); }); };
             const handleFullDepositToggle = (nick, grandTotal, currentDeposit) => { const isPaid = currentDeposit >= grandTotal; if (isPaid) { openModal("입금 취소 처리하시겠습니까?", 'confirm', () => { setOrders(prev => prev.map(o => o.customer === nick ? { ...o, deposit: 0 } : o)); }); } else { setOrders(prev => { let processed = false; return prev.map(o => { if (o.customer === nick) { if (!processed) { processed = true; return { ...o, deposit: grandTotal }; } else { return { ...o, deposit: 0 }; } } return o; }); }); } };
             const resetUserDeposit = (nick) => { openModal("입금액 0원 초기화?", 'confirm', () => { setOrders(prev => prev.map(o => o.customer === nick ? { ...o, deposit: 0 } : o)); }); };
-            // 상품명/가격 수정 시 isUnmodified: false 처리
             const handleProductChange = (id, field, value) => { if (field === 'product') { setCurrentSearchTerm(value); setProductHistory(prev => ({ ...prev, [value]: prev[value] || 0 })); } setOrders(prev => prev.map(o => { if (o.id === id) { const newOrder = { ...o, [field]: value, isUnmodified: false }; let unitPrice = 0; if(field === 'product') { if(inventory && inventory[value]) unitPrice = Number(inventory[value].price); else if(productHistory[value]) unitPrice = Number(productHistory[value]); newOrder.price = newOrder.quantity * (unitPrice || 0); } if (field === 'price' && o.product) { const uPrice = value / o.quantity; setProductHistory(h => ({ ...h, [o.product]: uPrice })); } return newOrder; } return o; })); };
-            // 수량 수정 시 isUnmodified: false 처리
             const handleQuantityUpdate = (itemId, newQtyVal) => { const newQty = parseInt(newQtyVal, 10); if (isNaN(newQty) || newQty < 1) return setEditingQuantityId(null); setOrders(prev => prev.map(o => { if (o.id === itemId) { let unitPrice = 0; if (o.quantity > 0 && o.price > 0) { unitPrice = o.price / o.quantity; } else if (productHistory[o.product]) { unitPrice = productHistory[o.product]; } return { ...o, quantity: newQty, price: unitPrice * newQty, isUnmodified: false }; } return o; })); setEditingQuantityId(null); };
             const handleShippingChange = (nick, val) => { setShippingOverrides(prev => ({ ...prev, [nick]: Number(val) })); };
             const handleNicknameEdit = (oldNick) => { openModal(`'${oldNick}' 닉네임 변경`, 'prompt', (newNickRaw) => { if (newNickRaw && newNickRaw !== oldNick) { const newNick = String(newNickRaw || '').replace(/@/g, '').trim(); setOrders(prev => prev.map(o => o.customer === oldNick ? { ...o, customer: newNick } : o)); if (shippingOverrides[oldNick]) { const newOverrides = { ...shippingOverrides, [newNick]: shippingOverrides[oldNick] }; delete newOverrides[oldNick]; setShippingOverrides(newOverrides); } if (selectedNick === oldNick) setSelectedNick(newNick); } }, null, oldNick); };
@@ -459,7 +544,7 @@
             };
 
              return (
-                <div className="flex h-full gap-2 p-2 overflow-hidden bg-gray-50 text-slate-800">
+                <div className="flex h-full gap-2 p-2 overflow-hidden bg-gray-100 text-slate-800">
                     <datalist id="product-list">
                         {filteredProductList.map(name => {
                             let suffix = '';
@@ -494,7 +579,7 @@
                             </div>
                              <div className="relative mt-2"><Icon name="magnifying-glass" className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs"/><input type="text" placeholder="닉네임/내용 검색" value={chatSearch} onChange={e => setChatSearch(e.target.value)} className="w-full text-xs pl-7 pr-2 py-1.5 border rounded focus:ring-1 focus:ring-indigo-500 outline-none" /></div>
                         </div>
-                        <div className="flex-1 overflow-y-auto p-2 space-y-1 bg-gray-50">
+                        <div className="flex-1 overflow-y-auto p-2 space-y-1 bg-gray-100">
                             {filteredChats.map(chat => {
                                 const isMatched = Array.from(keywords).some(k => chat.content.includes(k));
                                 const isProcessed = clickedChats?.has(chat.id);
@@ -513,7 +598,7 @@
                     </div>
                     <div className="w-[20%] flex flex-col bg-white border rounded-lg shadow-sm overflow-hidden">
                         <div className="p-2 bg-yellow-50 border-b flex flex-col gap-2"><div className="font-bold text-yellow-700 flex items-center justify-between"><span className="flex items-center gap-1"><Icon name="money" weight="fill"/> 입금 내역</span><span className="text-xs text-gray-500">{filteredDeposits.length}건</span></div><form onSubmit={handleAddManualDeposit} className="flex flex-col gap-1 bg-white p-1 rounded border border-yellow-200"><div className="flex gap-1"><input type="text" value={newDepositName} onChange={(e)=>setNewDepositName(e.target.value)} placeholder="입금자명" className="w-[60%] text-xs border rounded px-1 py-1" /><input type="number" value={newDepositAmount} onChange={(e)=>setNewDepositAmount(e.target.value)} placeholder="금액" className="w-[40%] text-xs border rounded px-1 py-1" /></div><button type="submit" className="bg-yellow-500 text-white text-xs font-bold py-1 rounded hover:bg-yellow-600">수동 입금 추가</button></form><div className="relative"><Icon name="magnifying-glass" className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"/><input type="text" placeholder="입금자/금액 검색" value={depositSearch} onChange={e => setDepositSearch(e.target.value)} className="w-full text-xs pl-7 pr-2 py-1.5 border rounded focus:ring-1 focus:ring-yellow-500 outline-none" />{depositSearch && <button onClick={()=>setDepositSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"><Icon name="x-circle" weight="fill" size={12}/></button>}</div>{selectedNick && <div className="text-[11px] text-blue-600 bg-blue-50 p-1 rounded text-center animate-pulse">👇 '{selectedNick}'님 매칭</div>}</div>
-                        <div className="flex-1 overflow-y-auto p-2 space-y-1 bg-gray-50">
+                        <div className="flex-1 overflow-y-auto p-2 space-y-1 bg-gray-100">
                             {filteredDeposits.map(d => {
                                 const isUsed = matchedDeposits?.has(d.id);
                                 const depositNameClean = normalizeString(d.name);
@@ -527,10 +612,13 @@
 
                                 return (
                                     <div key={d.id} onClick={() => handleDepositClick(d)} className={`relative flex justify-between p-2 border rounded cursor-pointer transition-all group ${depositClasses}`}>
-                                        <span className="text-gray-900 text-sm flex items-center gap-1">{d.name} {d.source === 'manual' && <span className="text-[9px] text-gray-400 bg-gray-100 px-1 rounded">수동</span>}</span>
-                                        <div className="flex items-center gap-1.5">
+                                        <div className="flex flex-col gap-1">
+                                            <span className={`text-sm flex items-center gap-1 ${isUsed ? 'text-gray-500 line-through' : 'text-gray-900'}`}>{d.name} {d.source === 'manual' && <span className="text-[9px] text-gray-400 bg-gray-100 px-1 rounded">수동</span>}</span>
                                             <span className="text-[10px] text-gray-500 font-medium">{formatTimeOnly(d.time || d.date)}</span>
-                                            <span className="font-mono text-blue-600 font-bold text-sm">+{Number(d.amount).toLocaleString()}</span>
+                                        </div>
+                                        <div className="flex flex-col items-end justify-center">
+                                            <span className={`font-mono font-bold text-sm ${isUsed ? 'text-gray-500 line-through' : 'text-blue-600'}`}>+{Number(d.amount).toLocaleString()}</span>
+                                            {isUsed && <span className="text-[9px] font-bold text-green-600 bg-green-100 px-1.5 py-0.5 rounded mt-0.5">매칭완료</span>}
                                         </div>
                                         <button onClick={(e)=>{e.stopPropagation(); handleDeleteDepositItem(d.id)}} className="absolute -right-1 -top-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"><Icon name="trash" size={10} weight="bold"/></button>
                                     </div>
@@ -559,7 +647,7 @@
                                 </div><div className="w-32 relative"><Icon name="magnifying-glass" className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs"/><input type="text" placeholder="검색..." value={orderSearch} onChange={(e) => setOrderSearch(e.target.value)} className="w-full pl-6 pr-2 py-1 border rounded text-xs outline-none" />{orderSearch && <button onClick={()=>setOrderSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"><Icon name="x-circle" weight="fill" size={10}/></button>}</div></div>
                         </div>
                         
-                        <div className="flex-1 overflow-y-auto p-2 space-y-2 bg-gray-50">
+                        <div className="flex-1 overflow-y-auto p-2 space-y-2 bg-gray-100">
                              {filteredGroupedOrders.map(([nick, items]) => {
                                  const isSelected = selectedNick === nick;
                                  const currentShipping = shippingOverrides[nick] !== undefined ? shippingOverrides[nick] : Number(quickShipping);
@@ -576,17 +664,17 @@
                                  const addr = findAddress(nick);
                                  const suggestions = findAddressSuggestions(nick);
 
-                                 let borderClass = 'border-gray-200';
+                                 let borderClass = 'border-transparent';
                                  let headerBgClass = 'bg-white';
 
                                  if (isCard) {
-                                     borderClass = 'border-transparent'; 
+                                     borderClass = 'border-purple-200 ring-1 ring-purple-200'; 
                                      headerBgClass = 'bg-purple-50'; 
                                  } else if (!isPaidState && balance > 0) { 
-                                     borderClass = 'border-transparent';
+                                     borderClass = 'border-red-200 ring-1 ring-red-200';
                                      headerBgClass = 'bg-red-50'; 
                                  } else if (balance < 0 && !isCard) { 
-                                     borderClass = 'border-transparent';
+                                     borderClass = 'border-blue-200 ring-1 ring-blue-200';
                                      headerBgClass = 'bg-blue-50'; 
                                  } else if (isPaidState) { 
                                      borderClass = 'border-gray-200'; 
@@ -595,6 +683,7 @@
                                  
                                  if (isSelected) {
                                      headerBgClass = 'bg-indigo-50';
+                                     borderClass = 'border-indigo-400 ring-1 ring-indigo-400 shadow-md';
                                  }
 
                                  return (<div key={nick} onClick={() => setSelectedNick(prev => prev === nick ? null : nick)} className={`bg-white rounded shadow-sm transition-all overflow-hidden cursor-pointer ${borderClass} border`}>
@@ -610,7 +699,7 @@
                                             
                                             <div onClick={(e) => e.stopPropagation()} className="ml-1">
                                                 {isEditingShipping ? (
-                                                    <div className="flex items-center gap-1 bg-white border border-indigo-300 rounded px-1 py-0.5 shadow-sm"><Icon name="truck" className="text-indigo-600 text-[10px]"/><input type="number" value={currentShipping} onChange={(e) => handleShippingChange(nick, e.target.value)} onBlur={() => setEditingShippingNick(null)} onKeyDown={(e) => { if(e.key === 'Enter') setEditingShippingNick(null); }} autoFocus className="w-12 text-[10px] outline-none font-mono text-right text-indigo-600 font-bold bg-transparent"/></div>
+                                                    <div className="flex items-center gap-1 bg-white border border-indigo-300 rounded px-1 py-0.5 shadow-sm"><Icon name="truck" className="text-indigo-600 text-[10px]"/><input type="number" value={currentShipping} onChange={(e) => handleShippingChange(nick, e.target.value)} onBlur={() => setEditingShippingNick(null)} onKeyDown={(e) => { if(e.key === 'Enter') setEditingShippingNick(null); }} autoFocus onFocus={(e) => e.target.select()} className="w-12 text-[10px] outline-none font-mono text-right text-indigo-600 font-bold bg-transparent"/></div>
                                                 ) : (
                                                     <div onClick={() => setEditingShippingNick(nick)} className="cursor-pointer flex items-center gap-1 text-[10px] text-gray-500 bg-white px-1.5 py-0.5 rounded border hover:bg-indigo-50 hover:text-indigo-600 transition-colors" title="클릭하여 배송비 수정">
                                                         <Icon name="truck" weight="fill"/> <span>{currentShipping.toLocaleString()}</span>
@@ -629,10 +718,11 @@
 
                                             <button 
                                                 onClick={(e) => { e.stopPropagation(); copyOrderSheet(nick, items, grandTotal, depositTotal, balance, isCard); }} 
-                                                className={`ml-1 flex items-center justify-center w-8 h-7 rounded border border-yellow-400 bg-yellow-400 hover:bg-yellow-500 text-black shadow-sm transition-all`}
+                                                className={`ml-1 flex items-center gap-1 px-2 py-0.5 rounded border transition-colors ${copyStatus[nick] ? 'bg-green-100 border-green-300 text-green-700' : 'bg-yellow-300 border-yellow-400 text-yellow-900 hover:bg-yellow-400'}`}
                                                 title="주문서 카톡 복사"
                                             >
-                                                {copyStatus[nick] ? <Icon name="check" weight="bold" size={18}/> : <Icon name="chat-circle-dots" weight="fill" size={18}/>}
+                                                <Icon name={copyStatus[nick] ? "check" : "chat-circle-dots"} weight="fill" size={16}/>
+                                                <span className="text-[10px] font-bold">카톡</span>
                                             </button>
 
                                             <div onClick={(e) => { e.stopPropagation(); handleOrderCheckToggle(nick); }} className="ml-1 cursor-pointer flex items-center" title="주문 확인 체크">
@@ -657,12 +747,12 @@
                                      <div className="flex flex-col gap-1 items-end text-right">
                                         <div className={`font-bold text-sm font-mono ${isPaidState && balance === 0 ? 'text-green-600' : (balance < 0 ? 'text-blue-600' : 'text-gray-800')}`}>{grandTotal.toLocaleString()}원</div>
                                         {!isCard && balance !== 0 && depositTotal > 0 && (<div className="text-[10px] text-gray-500">(입금: {depositTotal.toLocaleString()}원)</div>)}
-                                        {!isCard && balance > 0 && (<div className="text-[10px] font-bold text-red-500 bg-red-50 px-1 rounded border border-red-100">미납: {balance.toLocaleString()}원</div>)}
-                                        {!isCard && balance < 0 && (<div className="text-[10px] font-bold text-blue-600 bg-blue-50 px-1 rounded border border-blue-100">과납: {Math.abs(balance).toLocaleString()}원</div>)}
+                                        {!isCard && balance > 0 && (<div className="text-[10px] font-bold text-red-500 mt-0.5">미납: {balance.toLocaleString()}원</div>)}
+                                        {!isCard && balance < 0 && (<div className="text-[10px] font-bold text-blue-600 mt-0.5">과납: {Math.abs(balance).toLocaleString()}원</div>)}
                                      </div>
                                  </div>
                                  
-                                 <div className="p-1 space-y-1">
+                                 <div className="p-1 space-y-1 bg-white">
                                     {items.map((item, idx) => { 
                                         const isZeroPrice = Number(item.price) === 0; 
                                         const invInfo = inventory && inventory[item.product]; 
@@ -685,7 +775,7 @@
                                                         value={item.product} 
                                                         onChange={(e) => handleProductChange(item.id, 'product', e.target.value)} 
                                                         onClick={(e) => e.stopPropagation()} 
-                                                        /* item.isUnmodified 가 true일 때만 파란색 배경/글씨 적용 */
+                                                        onFocus={(e) => e.target.select()}
                                                         className={`w-full outline-none px-1 rounded transition-colors ${item.isCancelled ? 'text-gray-400 line-through bg-transparent' : (item.isUnmodified ? 'text-blue-600 font-bold bg-blue-50 focus:bg-white focus:ring-1 focus:ring-blue-300' : 'bg-transparent focus:bg-white focus:ring-1 focus:ring-indigo-100')}`} 
                                                         placeholder="상품명" 
                                                         disabled={item.isCancelled} 
@@ -694,9 +784,9 @@
                                                 </div>
                                                 <div className="flex items-center gap-1">
                                                     <span onDoubleClick={(e) => { e.stopPropagation(); if (!item.isCancelled) setEditingQuantityId(item.id); }} className={`cursor-pointer font-bold ${item.isCancelled ? 'cursor-not-allowed hover:bg-transparent line-through text-gray-400' : (item.isUnmodified ? 'text-blue-600 hover:bg-blue-100' : 'text-indigo-600 hover:bg-indigo-100')}`}>
-                                                        {editingQuantityId === item.id ? (<input type="number" defaultValue={item.quantity} autoFocus className="w-8 text-center text-[10px] font-bold text-indigo-600 bg-white border border-indigo-300 rounded outline-none" onBlur={(e) => handleQuantityUpdate(item.id, e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handleQuantityUpdate(item.id, e.currentTarget.value); }} onClick={(e) => e.stopPropagation()} />) : `${item.quantity}개`}
+                                                        {editingQuantityId === item.id ? (<input type="number" defaultValue={item.quantity} autoFocus onFocus={(e) => e.target.select()} className="w-8 text-center text-[10px] font-bold text-indigo-600 bg-white border border-indigo-300 rounded outline-none" onBlur={(e) => handleQuantityUpdate(item.id, e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handleQuantityUpdate(item.id, e.currentTarget.value); }} onClick={(e) => e.stopPropagation()} />) : `${item.quantity}개`}
                                                     </span>
-                                                    <input type="number" value={item.price} onChange={(e) => handleProductChange(item.id, 'price', e.target.value)} onClick={(e) => e.stopPropagation()} className={`w-14 text-right font-mono bg-transparent outline-none ${item.isCancelled ? 'line-through text-gray-400' : (item.isUnmodified ? 'text-blue-500 font-bold' : 'text-gray-500 focus:text-indigo-600')} ${Number(item.price) === 0 && !item.isCancelled ? 'bg-red-50 border-b border-red-300' : ''}`} disabled={item.isCancelled} />
+                                                    <input type="number" value={item.price} onChange={(e) => handleProductChange(item.id, 'price', e.target.value)} onClick={(e) => e.stopPropagation()} onFocus={(e) => e.target.select()} className={`w-14 text-right font-mono bg-transparent outline-none ${item.isCancelled ? 'line-through text-gray-400' : (item.isUnmodified ? 'text-blue-500 font-bold' : 'text-gray-500 focus:text-indigo-600')} ${Number(item.price) === 0 && !item.isCancelled ? 'bg-red-50 border-b border-red-300' : ''}`} disabled={item.isCancelled} />
                                                     <button onClick={(e)=>{e.stopPropagation(); handleOrderCancel(item.id);}} className={`ml-1 ${item.isCancelled ? "text-blue-500 hover:text-blue-700" : "text-gray-300 hover:text-red-500"}`} title={item.isCancelled ? "취소 철회" : "주문 취소"}><Icon name={item.isCancelled ? "arrow-u-up-left" : "prohibit"} weight="bold"/></button>
                                                     <button onClick={(e)=>{e.stopPropagation(); handleOrderDelete(item.id);}} className="text-gray-300 hover:text-red-500 ml-1"><Icon name="trash" weight="bold"/></button>
                                                 </div>
@@ -1015,7 +1105,7 @@
                             <button onClick={()=>setIsSettingsOpen(false)} className="w-full bg-indigo-600 text-white rounded py-2 text-sm font-bold hover:bg-indigo-700 sticky bottom-0">저장 및 닫기</button>
                         </div>
                     )}
-                     <main className="flex-1 overflow-hidden bg-gray-50 p-2 relative">
+                     <main className="flex-1 overflow-hidden bg-gray-200 p-2 relative">
                         {activeTab === 'live' && <LiveTab {...{ orders, setOrders, productHistory, setProductHistory, quickShipping, shippingOverrides, setShippingOverrides, bankAccount, googleScriptUrl, addresses, cardPayments, setCardPayments, resetAllStatus, matchedDeposits, setMatchedDeposits, depositorNames, setDepositorNames, clickedChats, setClickedChats, openModal, keywords, setKeywords, sentAddressRequests, setSentAddressRequests, deletedDepositIds, setDeletedDepositIds, checkedOrders, setCheckedOrders, addressMapping, setAddressMapping, templateConfig, specialCustomers, inventory }} />}
                         {activeTab === 'status' && <OrderStatusTab {...{ orders, setOrders, setProductHistory, productHistory, inventory, setInventory }} />}
                         {activeTab === 'customer' && <CustomerTab {...{ addresses, setAddresses, googleScriptUrl, customerSheetId, openModal, specialCustomers, setSpecialCustomers }} />}
