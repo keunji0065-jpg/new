@@ -8,7 +8,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     
-    <title>깔로 주문서 PRO (AI 자동화 모드 탑재)</title>
+    <title>깔로 주문서 PRO (Gemini AI 스마트 매칭 고도화)</title>
     
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin="anonymous"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
@@ -85,7 +85,7 @@
         const DEFAULT_GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx-xAIb3GT5gRO69jwJu_wROo-2UuozJ8fY-MAeuEtllmAIbu_J-Uh5oPX71YJ9Omnhbw/exec";
         const FIXED_BANK_ACCOUNT = "카카오뱅크 김선정\n7942 18 01611";
         const DEFAULT_CUSTOMER_SHEET_ID = "1zlL6R8iCy-6ZRMqj6dbefhkwSyRzHibDYBNJLmE35bM";
-        const APP_PASSWORD = "003637";
+        const APP_PASSWORD = "0036";
         
         // ✅ [고정] Gemini API 키 하드코딩
         const GEMINI_API_KEY = "AIzaSyBgn-TA2T_TuePgfTJXGo4n66dCTA6eSTA";
@@ -191,7 +191,7 @@
             const [editingQuantityId, setEditingQuantityId] = useState(null);
             const [currentSearchTerm, setCurrentSearchTerm] = useState('');
             
-            // ✅ AI 상태 관리
+            // AI 상태 관리
             const [analyzingChatIds, setAnalyzingChatIds] = useState(new Set()); 
             const [isAIAutoMode, setIsAIAutoMode] = useState(false); 
 
@@ -219,7 +219,7 @@
 
             const allDeposits = useMemo(() => [...manualDeposits, ...serverDeposits], [manualDeposits, serverDeposits]);
             
-            // 스마트 자동 매칭 로직
+            // 스마트 자동 매칭 로직 (이름 + 금액 일치 확인 완벽 적용)
             const ordersRef = useRef(orders);
             const depositorNamesRef = useRef(depositorNames);
             const matchedDepositsRef = useRef(matchedDeposits);
@@ -264,7 +264,6 @@
                     if (depositNameClean.length < 2) return; 
 
                     let exactMatches = [];
-                    
                     Object.keys(customerBalances).forEach(nick => {
                         const savedRealName = depositorNamesRef.current[nick] ? normalizeString(depositorNamesRef.current[nick]) : '';
                         const nickClean = normalizeString(nick);
@@ -300,7 +299,6 @@
                         
                         customerBalances[matchedCustomer].depositTotal += depositAmount;
                         customerBalances[matchedCustomer].balance -= depositAmount;
-                        
                         newMatchedIds.add(deposit.id);
                         hasChanges = true;
                     }
@@ -325,7 +323,7 @@
                     return cleanAddrNick !== cleanNick && (cleanAddrNick.includes(cleanNick) || cleanNick.includes(cleanAddrNick));
                 }).map(a => a.nickname).slice(0, 3);
             };
-             const getSpecialCustomer = (nick) => {
+            const getSpecialCustomer = (nick) => {
                 if (!specialCustomers) return null;
                 const nickNorm = normalizeString(nick);
                 const key = Object.keys(specialCustomers).find(k => normalizeString(k) === nickNorm);
@@ -365,7 +363,7 @@
                 });
             };
             
-            // ✅ [수정] Google Gemini API 전용 자동 분석 로직 + 폴백 로직 완벽 적용
+            // ✅ [수정] Gemini API 스마트 매칭 고도화
             const handleAIParsing = async (chat) => {
                 if (!GEMINI_API_KEY) {
                     if (!isAIAutoMode) openModal("Gemini API 키가 소스코드에 설정되지 않았습니다.", 'alert');
@@ -385,28 +383,24 @@
                 try {
                     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
                         method: "POST",
-                        headers: {
-                            "Content-Type": "application/json"
-                        },
+                        headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
                             systemInstruction: {
-                                parts: [
-                                    {
-                                        text: `너는 라이브 커머스 주문을 정리하는 스마트 어시스턴트야. 사용자의 댓글을 분석해서 주문하려는 상품명과 수량을 찾아줘.\n조건:\n1. 반드시 아래의 [등록된 상품명] 목록에 있는 정확한 이름으로만 매칭해.\n2. 목록에 없는 상품이나 단순 잡담, 인사는 철저히 무시해.\n3. 결과를 반드시 JSON 배열 형식으로만 반환해.\n[등록된 상품명]: ${productNames}\n\n출력 형식 예시:\n[{"product": "정식상품명1", "quantity": 1}, {"product": "정식상품명2", "quantity": 2}]\n응답은 다른 말 없이 위 예시와 같은 JSON 배열만 출력해.`
-                                    }
-                                ]
+                                parts: [{
+                                    text: `너는 라이브 커머스 주문을 정리하는 스마트 어시스턴트야. 사용자의 댓글을 분석해서 주문하려는 상품명과 수량을 찾아줘.
+지침:
+1. 반드시 아래의 [등록된 상품명] 목록에서 가장 알맞은 정식 명칭을 찾아 매칭해.
+2. 고객이 상품명의 일부만 말하거나 숫자 번호(예: 01, 1번)를 빼고 말해도, 목록에서 맥락상 일치하는 것을 찾아 정식 명칭으로 변환해. (예: 고객이 '바지 77'이라 하고 목록에 '01 바지 77'이 있으면 '01 바지 77'로 매칭)
+3. 수량이 언급되지 않으면 기본값 1로 설정해.
+4. 목록에 없는 상품이거나 잡담은 빈 배열 [] 을 반환해.
+5. 결과는 반드시 JSON 배열 형식으로만 반환해.
+[등록된 상품명]: ${productNames}
+
+출력 예시: [{"product": "정식상품명", "quantity": 1}]`
+                                }]
                             },
-                            contents: [
-                                {
-                                    parts: [
-                                        { text: chat.content }
-                                    ]
-                                }
-                            ],
-                            generationConfig: {
-                                temperature: 0.1,
-                                responseMimeType: "application/json"
-                            }
+                            contents: [{ parts: [{ text: chat.content }] }],
+                            generationConfig: { temperature: 0.1, responseMimeType: "application/json" }
                         })
                     });
 
@@ -417,32 +411,31 @@
                     const parsedItems = JSON.parse(resultText);
 
                     if (!Array.isArray(parsedItems) || parsedItems.length === 0) {
-                         // ✅ AI가 빈 결과를 반환(매칭 실패)하면 폴백으로 원본 텍스트 삽입 (에러/알림창 없음)
+                         // ✅ 매칭 실패 시 원본 댓글 그대로 폴백 (알림 없이 조용히 추가)
                          addOrderLogic(chat.nickname, chat.content, 1, true);
-                         setClickedChats(prev => new Set(prev).add(chat.id));
                     } else {
                          parsedItems.forEach(item => {
                              if(item.product && item.quantity) {
                                  addOrderLogic(chat.nickname, item.product, item.quantity, false);
                              }
                          });
-                         setClickedChats(prev => new Set(prev).add(chat.id));
                     }
+                    setClickedChats(prev => new Set(prev).add(chat.id));
                 } catch (error) {
                     console.error("AI 파싱 에러:", error);
-                    // ✅ API 에러(네트워크 오류 등) 발생 시에도 원본 텍스트 그대로 삽입 (AI 모드는 끄지 않음)
-                    addOrderLogic(chat.nickname, chat.content, 1, true);
+                    addOrderLogic(chat.nickname, chat.content, 1, true); // 에러 시 원본 그대로 추가
                     setClickedChats(prev => new Set(prev).add(chat.id)); 
                 } finally {
                     setAnalyzingChatIds(prev => { const next = new Set(prev); next.delete(chat.id); return next; });
                 }
             };
 
-            // ✅ AI 자동모드 감지 로직
+            // ✅ AI 자동모드 감지 (키워드 매칭 시 발동)
             useEffect(() => {
                 if (!isAIAutoMode) return;
                 
-                const keywordArray = Array.from(keywords).filter(k => k.trim());
+                // 키워드를 공백으로 분리하여 각각 감지 (예: '바지 66 77' 입력 시 '바지'나 '77'만 있어도 감지)
+                const keywordArray = Array.from(keywords).flatMap(k => k.split(/\s+/)).filter(k => k.trim().length > 0);
                 if (keywordArray.length === 0) return; 
                 
                 const pendingChats = chats.filter(chat => {
@@ -623,7 +616,7 @@
 
             const renderChatContent = (content, keywordsSet) => {
                 if (!keywordsSet || keywordsSet.size === 0) return content;
-                const kwArray = Array.from(keywordsSet).filter(k => k.trim());
+                const kwArray = Array.from(keywordsSet).flatMap(k => k.split(/\s+/)).filter(k => k.trim());
                 if (kwArray.length === 0) return content;
                 const escapeRegExp = (string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
                 const pattern = new RegExp(`(${kwArray.map(escapeRegExp).join('|')})`, 'gi');
@@ -1181,41 +1174,81 @@
         const CSTab = ({ csData, setCsData, openModal }) => { 
             const [newNick, setNewNick] = useState(''); 
             const [newContent, setNewContent] = useState(''); 
-            const addCS = (e) => { e.preventDefault(); if (!newNick) return; const newItem = { id: Date.now(), date: new Date().toISOString(), nickname: newNick, content: newContent, isResolved: false }; setCsData([newItem, ...csData]); setNewNick(''); setNewContent(''); }; 
+            const addCS = (e) => { 
+                if(e) e.preventDefault(); 
+                if (!newNick.trim()) {
+                    openModal("닉네임을 입력해주세요.", 'alert');
+                    return;
+                }
+                const newItem = { id: Date.now(), date: new Date().toISOString(), nickname: newNick, content: newContent, isResolved: false }; 
+                setCsData([newItem, ...csData]); 
+                setNewNick(''); 
+                setNewContent(''); 
+            }; 
             const updateCS = (id, field, value) => { setCsData(prev => prev.map(item => item.id === id ? { ...item, [field]: value } : item)); }; 
             const deleteCS = (id) => { openModal('이 CS 내역을 삭제하시겠습니까?', 'confirm', () => setCsData(prev => prev.filter(i => i.id !== id))); }; 
-            return ( <div className="flex flex-col h-full bg-white rounded-lg shadow-sm border p-4 overflow-hidden"> <div className="flex justify-between items-center mb-4 pb-4 border-b"><h2 className="text-xl font-bold flex items-center gap-2"><Icon name="headset" weight="fill" className="text-indigo-600"/> CS 관리 <span className="text-sm font-normal text-gray-500">({csData.length}건)</span></h2></div> <form onSubmit={addCS} className="bg-indigo-50 p-3 rounded-lg border border-indigo-100 mb-4 flex gap-2 items-center"><input type="text" value={newNick} onChange={e=>setNewNick(e.target.value)} className="w-32 border rounded px-2 py-2 text-sm" placeholder="닉네임" /><input type="text" value={newContent} onChange={e=>setNewContent(e.target.value)} className="flex-1 border rounded px-2 py-2 text-sm" placeholder="상담 내용 입력..." /><button type="submit" className="bg-indigo-600 text-white px-4 py-2 rounded font-bold text-sm hover:bg-indigo-700">등록</button></form> <div className="flex-1 overflow-y-auto border rounded bg-white"> <table className="w-full text-sm text-left"><thead className="bg-gray-100 text-gray-600 sticky top-0"><tr><th className="p-2 border-b w-24">날짜</th><th className="p-2 border-b w-32">닉네임</th><th className="p-2 border-b">내용</th><th className="p-2 border-b w-16 text-center">완료</th><th className="p-2 border-b w-16 text-center">삭제</th></tr></thead> <tbody className="divide-y"> {csData.map(item => ( <tr key={item.id} className={`group hover:bg-gray-50 ${item.isResolved ? 'bg-gray-50 opacity-60' : ''}`}> <td className="p-2 text-xs text-gray-400">{new Date(item.date).toLocaleDateString()}</td> <td className="p-2"><input type="text" value={item.nickname} onChange={e=>updateCS(item.id, 'nickname', e.target.value)} className="w-full bg-transparent outline-none focus:bg-white focus:ring-1 ring-indigo-300 rounded px-1" /></td> <td className="p-2"><input type="text" value={item.content} onChange={e=>updateCS(item.id, 'content', e.target.value)} className={`w-full bg-transparent outline-none focus:bg-white focus:ring-1 ring-indigo-300 rounded px-1 ${item.isResolved ? 'line-through text-gray-400' : ''}`} /></td> <td className="p-2 text-center"><input type="checkbox" checked={item.isResolved} onChange={e=>updateCS(item.id, 'isResolved', e.target.checked)} className="cursor-pointer" /></td> <td className="p-2 text-center"><button onClick={()=>deleteCS(item.id)} className="text-gray-300 hover:text-red-500"><Icon name="trash" weight="bold"/></button></td> </tr> ))} </tbody> </table> </div> </div> ); 
+            return ( 
+                <div className="flex flex-col h-full bg-white rounded-lg shadow-sm border overflow-hidden"> 
+                    <div className="flex justify-between items-center p-4 border-b bg-white z-20">
+                        <h2 className="text-xl font-bold flex items-center gap-2"><Icon name="headset" weight="fill" className="text-indigo-600"/> CS 관리 <span className="text-sm font-normal text-gray-500">({csData.length}건)</span></h2>
+                    </div> 
+
+                    <div className="flex-1 overflow-y-auto bg-gray-50 flex flex-col relative"> 
+                        {/* Header */}
+                        <div className="flex justify-between items-center px-4 py-2 bg-gray-200 border-b text-xs font-bold text-gray-600 sticky top-0 z-10 shadow-sm">
+                            <div className="w-24 pl-2">날짜</div>
+                            <div className="w-32">닉네임</div>
+                            <div className="flex-1">내용 (클릭하여 수정)</div>
+                            <div className="w-16 text-center">완료</div>
+                            <div className="w-16 text-center">삭제</div>
+                        </div>
+                        {/* Data List */}
+                        <div className="flex-1 pb-4">
+                            {csData.length === 0 ? (
+                                <div className="text-center text-gray-400 p-10 flex flex-col items-center gap-2">
+                                    <Icon name="headset" size={48} weight="light" className="text-gray-300"/>
+                                    <p>등록된 CS 내역이 없습니다. 하단에서 새 내역을 추가해보세요.</p>
+                                </div>
+                            ) : (
+                                csData.map(item => ( 
+                                    <div key={item.id} className={`flex justify-between items-center px-4 py-1.5 border-b border-gray-200 transition-colors ${item.isResolved ? 'bg-gray-100 opacity-60' : 'bg-white hover:bg-indigo-50/40'}`}> 
+                                        <div className="w-24 text-xs text-gray-400 pl-2">{new Date(item.date).toLocaleDateString()}</div> 
+                                        <div className="w-32 pr-2">
+                                            <input type="text" value={item.nickname} onChange={e=>updateCS(item.id, 'nickname', e.target.value)} onKeyDown={e=>e.key==='Enter'&&e.target.blur()} className="w-full bg-transparent border-b border-transparent hover:border-gray-300 focus:border-indigo-500 focus:bg-white outline-none px-1 py-1 rounded-sm text-sm font-bold transition-all" />
+                                        </div> 
+                                        <div className="flex-1 pr-4">
+                                            <input type="text" value={item.content} onChange={e=>updateCS(item.id, 'content', e.target.value)} onKeyDown={e=>e.key==='Enter'&&e.target.blur()} className={`w-full bg-transparent border-b border-transparent hover:border-gray-300 focus:border-indigo-500 focus:bg-white outline-none px-1 py-1 rounded-sm text-sm transition-all ${item.isResolved ? 'line-through text-gray-400' : ''}`} />
+                                        </div> 
+                                        <div className="w-16 text-center">
+                                            <input type="checkbox" checked={item.isResolved} onChange={e=>updateCS(item.id, 'isResolved', e.target.checked)} className="cursor-pointer w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500" />
+                                        </div> 
+                                        <div className="w-16 text-center">
+                                            <button onClick={()=>deleteCS(item.id)} className="text-gray-300 hover:text-red-500 p-1 transition-colors"><Icon name="trash" weight="fill" size={16}/></button>
+                                        </div> 
+                                    </div> 
+                                ))
+                            )}
+                        </div> 
+                    </div> 
+
+                    {/* 🚀 하단 고정 추가 영역 (엑셀 스타일) */}
+                    <div className="px-4 py-3 bg-indigo-50/80 border-t border-indigo-200 flex gap-4 items-center z-20 shadow-[0_-4px_10px_-2px_rgba(0,0,0,0.05)]">
+                        <div className="flex-1 flex items-center gap-4">
+                            <input type="text" id="new-cs-nick" value={newNick} onChange={e=>setNewNick(e.target.value)} onKeyDown={e=>e.key==='Enter'&&document.getElementById('new-cs-content').focus()} className="w-32 border-2 border-indigo-100 rounded-md px-3 py-2 text-sm outline-none focus:border-indigo-400 focus:ring-2 ring-indigo-100 shadow-inner bg-white font-bold text-indigo-900 placeholder-indigo-300 transition-all" placeholder="닉네임" />
+                            <input type="text" id="new-cs-content" value={newContent} onChange={e=>setNewContent(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'){addCS(e); setTimeout(()=>document.getElementById('new-cs-nick')?.focus(), 50);}}} className="flex-1 border-2 border-indigo-100 rounded-md px-3 py-2 text-sm outline-none focus:border-indigo-400 focus:ring-2 ring-indigo-100 shadow-inner bg-white text-gray-800 transition-all" placeholder="[Enter] 상담 내용 입력..." />
+                        </div>
+                        <div className="w-24 text-right flex justify-end">
+                            <button onClick={(e)=>{addCS(e); document.getElementById('new-cs-nick')?.focus();}} className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-md font-bold text-sm shadow-md hover:shadow-lg transition-all flex items-center gap-1.5 border border-indigo-700">
+                                <Icon name="plus" weight="bold"/> 추가
+                            </button>
+                        </div>
+                    </div>
+                </div> 
+            ); 
         };
 
-        const OrderManagementTab = ({ orders, shippingOverrides, quickShipping, addresses, addressMapping, cardPayments }) => {
+        const OrderManagementTab = ({ orders, shippingOverrides, quickShipping, addresses, handleExportBackup, handleImportBackup, addressMapping, cardPayments }) => {
             const fileInputRef = useRef(null);
-            
-            const handleExportBackup = () => { 
-                const backupData = { date: new Date().toISOString(), orders, shippingOverrides, cardPayments, addressMapping }; 
-                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData)); 
-                const downloadAnchorNode = document.createElement('a'); 
-                downloadAnchorNode.setAttribute("href", dataStr); 
-                downloadAnchorNode.setAttribute("download", "kallo_backup_" + new Date().toISOString().slice(0,10) + ".json"); 
-                document.body.appendChild(downloadAnchorNode); 
-                downloadAnchorNode.click(); 
-                downloadAnchorNode.remove(); 
-            };
-
-            const handleImportBackup = (e) => { 
-                const file = e.target.files[0]; 
-                if (!file) return; 
-                const reader = new FileReader(); 
-                reader.onload = (event) => { 
-                    try { 
-                        const data = JSON.parse(event.target.result); 
-                        alert("백업 복구는 라이브 관제 탭에서 진행해주세요."); 
-                    } catch(err) { 
-                        alert("파일 읽기 실패"); 
-                    } 
-                }; 
-                reader.readAsText(file); 
-                e.target.value = ''; 
-            };
             
             const findAddress = (nick) => {
                 if (addressMapping[nick]) return addresses.find(a => normalizeString(a.nickname) === normalizeString(addressMapping[nick]));
