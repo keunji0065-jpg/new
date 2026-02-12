@@ -8,7 +8,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     
-    <title>깔로 주문서 PRO (AI 자동화 모드 탑재)</title>
+    <title>깔로 주문서 PRO (Gemini AI 탑재)</title>
     
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin="anonymous"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
@@ -86,6 +86,9 @@
         const FIXED_BANK_ACCOUNT = "카카오뱅크 김선정\n7942 18 01611";
         const DEFAULT_CUSTOMER_SHEET_ID = "1zlL6R8iCy-6ZRMqj6dbefhkwSyRzHibDYBNJLmE35bM";
         const APP_PASSWORD = "003637";
+        
+        // ✅ [고정] Gemini API 키 하드코딩
+        const GEMINI_API_KEY = "AIzaSyBgn-TA2T_TuePgfTJXGo4n66dCTA6eSTA";
         
         const Icon = ({ name, className="", weight="regular", size }) => <i className={`ph ph-${name} ${className}`} data-phosphor-icon-weight={weight} style={{fontSize: size}}></i>;
         const normalizeString = (str) => String(str || '').replace(/[\s\(\)\[\]\{\}\-\_\.\,\/]/g, '').toLowerCase();
@@ -166,7 +169,7 @@
             );
         };
 
-        const LiveTab = ({ orders, setOrders, productHistory, setProductHistory, quickShipping, shippingOverrides, setShippingOverrides, bankAccount, googleScriptUrl, addresses, cardPayments, setCardPayments, resetAllStatus, matchedDeposits, setMatchedDeposits, depositorNames, setDepositorNames, clickedChats, setClickedChats, openModal, keywords, setKeywords, sentAddressRequests, setSentAddressRequests, deletedDepositIds, setDeletedDepositIds, checkedOrders, setCheckedOrders, addressMapping, setAddressMapping, templateConfig, specialCustomers, inventory, openAiApiKey }) => {
+        const LiveTab = ({ orders, setOrders, productHistory, setProductHistory, quickShipping, shippingOverrides, setShippingOverrides, bankAccount, googleScriptUrl, addresses, cardPayments, setCardPayments, resetAllStatus, matchedDeposits, setMatchedDeposits, depositorNames, setDepositorNames, clickedChats, setClickedChats, openModal, keywords, setKeywords, sentAddressRequests, setSentAddressRequests, deletedDepositIds, setDeletedDepositIds, checkedOrders, setCheckedOrders, addressMapping, setAddressMapping, templateConfig, specialCustomers, inventory }) => {
             const [chats, setChats] = useState([]);
             const [serverDeposits, setServerDeposits] = useState([]);
             const [manualDeposits, setManualDeposits] = useState([]);
@@ -189,8 +192,8 @@
             const [currentSearchTerm, setCurrentSearchTerm] = useState('');
             
             // ✅ AI 상태 관리
-            const [analyzingChatIds, setAnalyzingChatIds] = useState(new Set()); // 다중 처리 대비 Set 사용
-            const [isAIAutoMode, setIsAIAutoMode] = useState(false); // AI 자동 모드 토글
+            const [analyzingChatIds, setAnalyzingChatIds] = useState(new Set()); 
+            const [isAIAutoMode, setIsAIAutoMode] = useState(false); 
 
             const fetchData = async () => {
                 if (!googleScriptUrl) { setConnectionStatus({ code: 'error_config', msg: '설정필요' }); return; }
@@ -216,7 +219,7 @@
 
             const allDeposits = useMemo(() => [...manualDeposits, ...serverDeposits], [manualDeposits, serverDeposits]);
             
-            // 스마트 자동 매칭 로직 (이름 + 금액 일치 확인 완벽 적용)
+            // 스마트 자동 매칭 로직
             const ordersRef = useRef(orders);
             const depositorNamesRef = useRef(depositorNames);
             const matchedDepositsRef = useRef(matchedDeposits);
@@ -236,7 +239,6 @@
                 let newMatchedIds = new Set(matchedDepositsRef.current);
                 let hasChanges = false;
 
-                // 1. 현재 고객별 잔액 계산
                 const customerBalances = {};
                 updatedOrders.forEach(o => {
                     if (o.isCancelled) return;
@@ -255,7 +257,6 @@
                     cb.balance = cb.grandTotal - cb.depositTotal;
                 });
 
-                // 2. 입금 내역 순회하며 자동 매칭
                 allDeposits.forEach(deposit => {
                     if (newMatchedIds.has(deposit.id) || deletedDepositIds.has(deposit.id)) return;
 
@@ -267,7 +268,6 @@
                     Object.keys(customerBalances).forEach(nick => {
                         const savedRealName = depositorNamesRef.current[nick] ? normalizeString(depositorNamesRef.current[nick]) : '';
                         const nickClean = normalizeString(nick);
-                        // 완전 일치 또는 부분 포함(수동 매칭 기준과 동일)
                         if (savedRealName === depositNameClean || 
                             nickClean === depositNameClean || 
                             (depositNameClean.length >= 2 && nickClean.length >= 2 && (nickClean.includes(depositNameClean) || depositNameClean.includes(nickClean)))) {
@@ -275,15 +275,13 @@
                         }
                     });
 
-                    exactMatches = [...new Set(exactMatches)]; // 중복 제거
+                    exactMatches = [...new Set(exactMatches)]; 
                     let matchedCustomer = null;
                     const depositAmount = Number(deposit.amount);
 
                     if (exactMatches.length === 1) {
-                        // 딱 1명만 검색되면 매칭
                         matchedCustomer = exactMatches[0];
                     } else if (exactMatches.length > 1) {
-                        // 동명이인 등 여러 명 검색되면 '잔액'이 일치하는 사람을 매칭
                         const amountMatches = exactMatches.filter(nick => customerBalances[nick].balance === depositAmount);
                         if (amountMatches.length === 1) {
                             matchedCustomer = amountMatches[0];
@@ -300,7 +298,6 @@
                             return o;
                         });
                         
-                        // 현재 루프에서 해당 고객 잔액 최신화 (연속 입금건 처리 대비)
                         customerBalances[matchedCustomer].depositTotal += depositAmount;
                         customerBalances[matchedCustomer].balance -= depositAmount;
                         
@@ -309,7 +306,6 @@
                     }
                 });
 
-                // 무한 루프 방지를 위해 변경점이 있을 때만 State 업데이트
                 if (hasChanges) {
                     setOrders(updatedOrders);
                     setMatchedDeposits(newMatchedIds);
@@ -369,10 +365,10 @@
                 });
             };
             
-            // ✅ [추가] OpenAI API 연동 자동 분석 로직
+            // ✅ [수정] Google Gemini API 전용 자동 분석 로직
             const handleAIParsing = async (chat) => {
-                if (!openAiApiKey) {
-                    if (!isAIAutoMode) openModal("우측 상단의 [환경설정] 탭에서 OpenAI API 키를 입력해주세요.", 'alert');
+                if (!GEMINI_API_KEY) {
+                    if (!isAIAutoMode) openModal("Gemini API 키가 소스코드에 설정되지 않았습니다.", 'alert');
                     setIsAIAutoMode(false);
                     return;
                 }
@@ -387,41 +383,39 @@
                 setAnalyzingChatIds(prev => new Set(prev).add(chat.id));
 
                 try {
-                    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+                    // Google Gemini 1.5 Flash 모델 엔드포인트 사용
+                    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
                         method: "POST",
                         headers: {
-                            "Content-Type": "application/json",
-                            "Authorization": `Bearer ${openAiApiKey}`
+                            "Content-Type": "application/json"
                         },
                         body: JSON.stringify({
-                            model: "gpt-4o-mini", 
-                            messages: [
+                            systemInstruction: {
+                                parts: [
+                                    {
+                                        text: `너는 라이브 커머스 주문을 정리하는 스마트 어시스턴트야. 사용자의 댓글을 분석해서 주문하려는 상품명과 수량을 찾아줘.\n조건:\n1. 반드시 아래의 [등록된 상품명] 목록에 있는 정확한 이름으로만 매칭해.\n2. 목록에 없는 상품이나 단순 잡담, 인사는 철저히 무시해.\n3. 결과를 반드시 JSON 배열 형식으로만 반환해.\n[등록된 상품명]: ${productNames}\n\n출력 형식 예시:\n[{"product": "정식상품명1", "quantity": 1}, {"product": "정식상품명2", "quantity": 2}]\n응답은 다른 말 없이 위 예시와 같은 JSON 배열만 출력해.`
+                                    }
+                                ]
+                            },
+                            contents: [
                                 {
-                                    role: "system",
-                                    content: `너는 라이브 커머스 주문을 정리하는 스마트 어시스턴트야. 사용자의 댓글을 분석해서 주문하려는 상품명과 수량을 찾아줘.
-조건:
-1. 반드시 아래의 [등록된 상품명] 목록에 있는 정확한 이름으로만 매칭해.
-2. 목록에 없는 상품이나 단순 잡담, 인사는 철저히 무시해.
-3. 결과를 반드시 JSON 배열 형식으로만 반환해.
-[등록된 상품명]: ${productNames}
-
-출력 형식 예시:
-[{"product": "정식상품명1", "quantity": 1}, {"product": "정식상품명2", "quantity": 2}]
-응답은 다른 말 없이 위 예시와 같은 JSON 배열만 출력해.`
-                                },
-                                {
-                                    role: "user",
-                                    content: chat.content
+                                    parts: [
+                                        { text: chat.content }
+                                    ]
                                 }
                             ],
-                            temperature: 0.1
+                            generationConfig: {
+                                temperature: 0.1,
+                                responseMimeType: "application/json"
+                            }
                         })
                     });
 
                     const data = await response.json();
                     if (data.error) throw new Error(data.error.message);
 
-                    const resultText = data.choices[0].message.content.replace(/```json/g, '').replace(/```/g, '').trim();
+                    // Gemini 응답 포맷에 맞게 텍스트 추출
+                    const resultText = data.candidates[0].content.parts[0].text.replace(/```json/g, '').replace(/```/g, '').trim();
                     const parsedItems = JSON.parse(resultText);
 
                     if (!Array.isArray(parsedItems) || parsedItems.length === 0) {
@@ -437,28 +431,26 @@
                     }
                 } catch (error) {
                     console.error("AI 파싱 에러:", error);
-                    if (!isAIAutoMode) openModal("AI 분석 중 오류가 발생했습니다. API 키가 정확한지 확인해주세요.\n\n상세오류: " + error.message, 'alert');
-                    setClickedChats(prev => new Set(prev).add(chat.id)); // 에러 발생한 것도 무한루프 돌지 않게 처리
-                    setIsAIAutoMode(false); // 오류 발생 시 자동모드 즉시 해제
+                    if (!isAIAutoMode) openModal("AI 분석 중 오류가 발생했습니다.\n\n상세오류: " + error.message, 'alert');
+                    setClickedChats(prev => new Set(prev).add(chat.id)); 
+                    setIsAIAutoMode(false); 
                 } finally {
                     setAnalyzingChatIds(prev => { const next = new Set(prev); next.delete(chat.id); return next; });
                 }
             };
 
-            // ✅ [추가] AI 자동모드 감지 로직 (키워드 매칭 시 자동 발동)
+            // ✅ AI 자동모드 감지 로직
             useEffect(() => {
                 if (!isAIAutoMode) return;
                 
                 const keywordArray = Array.from(keywords).filter(k => k.trim());
-                if (keywordArray.length === 0) return; // 키워드가 없으면 무의미한 API 호출 방지
+                if (keywordArray.length === 0) return; 
                 
-                // 처리 안 된 채팅 중 키워드가 포함된 것 필터링
                 const pendingChats = chats.filter(chat => {
                     if (clickedChats.has(chat.id) || analyzingChatIds.has(chat.id)) return false;
                     return keywordArray.some(k => chat.content.includes(k));
                 });
 
-                // 너무 한 번에 많이 보내면 API 리밋 걸릴 수 있으므로 최대 2개씩 순차 처리
                 const chatsToProcess = pendingChats.slice(0, 2);
                 chatsToProcess.forEach(chat => {
                     handleAIParsing(chat);
@@ -524,7 +516,7 @@
                          openModal(`입금자명('${deposit.name}')과 일치하는 주문이 없습니다.\n\n현재 선택된 '${selectedNick}'님에게 강제로 입금 처리하시겠습니까?`, 'confirm', () => {
                              const depositAmount = Number(deposit.amount);
                              setOrders(prev => {
-                                 const targetOrders = filter(o => o.customer === selectedNick);
+                                 const targetOrders = prev.filter(o => o.customer === selectedNick);
                                  const otherOrders = prev.filter(o => o.customer !== selectedNick);
                                  if (targetOrders.length === 0) return prev;
                                  const updatedTargets = targetOrders.map((o, i) => { if (i === 0) return { ...o, deposit: (o.deposit || 0) + depositAmount }; return o; });
@@ -1003,8 +995,35 @@
             return ( <div className="flex flex-col h-full bg-white rounded-lg shadow-sm border p-4 overflow-hidden"> <div className="flex justify-between items-center mb-4 pb-4 border-b"><h2 className="text-xl font-bold flex items-center gap-2"><Icon name="headset" weight="fill" className="text-indigo-600"/> CS 관리 <span className="text-sm font-normal text-gray-500">({csData.length}건)</span></h2></div> <form onSubmit={addCS} className="bg-indigo-50 p-3 rounded-lg border border-indigo-100 mb-4 flex gap-2 items-center"><input type="text" value={newNick} onChange={e=>setNewNick(e.target.value)} className="w-32 border rounded px-2 py-2 text-sm" placeholder="닉네임" /><input type="text" value={newContent} onChange={e=>setNewContent(e.target.value)} className="flex-1 border rounded px-2 py-2 text-sm" placeholder="상담 내용 입력..." /><button type="submit" className="bg-indigo-600 text-white px-4 py-2 rounded font-bold text-sm hover:bg-indigo-700">등록</button></form> <div className="flex-1 overflow-y-auto border rounded bg-white"> <table className="w-full text-sm text-left"><thead className="bg-gray-100 text-gray-600 sticky top-0"><tr><th className="p-2 border-b w-24">날짜</th><th className="p-2 border-b w-32">닉네임</th><th className="p-2 border-b">내용</th><th className="p-2 border-b w-16 text-center">완료</th><th className="p-2 border-b w-16 text-center">삭제</th></tr></thead> <tbody className="divide-y"> {csData.map(item => ( <tr key={item.id} className={`group hover:bg-gray-50 ${item.isResolved ? 'bg-gray-50 opacity-60' : ''}`}> <td className="p-2 text-xs text-gray-400">{new Date(item.date).toLocaleDateString()}</td> <td className="p-2"><input type="text" value={item.nickname} onChange={e=>updateCS(item.id, 'nickname', e.target.value)} className="w-full bg-transparent outline-none focus:bg-white focus:ring-1 ring-indigo-300 rounded px-1" /></td> <td className="p-2"><input type="text" value={item.content} onChange={e=>updateCS(item.id, 'content', e.target.value)} className={`w-full bg-transparent outline-none focus:bg-white focus:ring-1 ring-indigo-300 rounded px-1 ${item.isResolved ? 'line-through text-gray-400' : ''}`} /></td> <td className="p-2 text-center"><input type="checkbox" checked={item.isResolved} onChange={e=>updateCS(item.id, 'isResolved', e.target.checked)} className="cursor-pointer" /></td> <td className="p-2 text-center"><button onClick={()=>deleteCS(item.id)} className="text-gray-300 hover:text-red-500"><Icon name="trash" weight="bold"/></button></td> </tr> ))} </tbody> </table> </div> </div> ); 
         };
 
-        const OrderManagementTab = ({ orders, shippingOverrides, quickShipping, addresses, handleExportBackup, handleImportBackup, addressMapping, cardPayments }) => {
+        const OrderManagementTab = ({ orders, shippingOverrides, quickShipping, addresses, addressMapping, cardPayments }) => {
             const fileInputRef = useRef(null);
+            
+            const handleExportBackup = () => { 
+                const backupData = { date: new Date().toISOString(), orders, shippingOverrides, cardPayments, addressMapping }; 
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData)); 
+                const downloadAnchorNode = document.createElement('a'); 
+                downloadAnchorNode.setAttribute("href", dataStr); 
+                downloadAnchorNode.setAttribute("download", "kallo_backup_" + new Date().toISOString().slice(0,10) + ".json"); 
+                document.body.appendChild(downloadAnchorNode); 
+                downloadAnchorNode.click(); 
+                downloadAnchorNode.remove(); 
+            };
+
+            const handleImportBackup = (e) => { 
+                const file = e.target.files[0]; 
+                if (!file) return; 
+                const reader = new FileReader(); 
+                reader.onload = (event) => { 
+                    try { 
+                        const data = JSON.parse(event.target.result); 
+                        alert("백업 복구는 라이브 관제 탭에서 진행해주세요."); 
+                    } catch(err) { 
+                        alert("파일 읽기 실패"); 
+                    } 
+                }; 
+                reader.readAsText(file); 
+                e.target.value = ''; 
+            };
             
             const findAddress = (nick) => {
                 if (addressMapping[nick]) return addresses.find(a => normalizeString(a.nickname) === normalizeString(addressMapping[nick]));
@@ -1168,7 +1187,6 @@
             const [isSettingsOpen, setIsSettingsOpen] = useState(false);
             const [googleScriptUrl, setGoogleScriptUrl] = useLocalStorage('googleScriptUrl', DEFAULT_GOOGLE_SCRIPT_URL);
             const [customerSheetId, setCustomerSheetId] = useLocalStorage('customerSheetId', DEFAULT_CUSTOMER_SHEET_ID);
-            const [openAiApiKey, setOpenAiApiKey] = useLocalStorage('openAiApiKey', '');
             const [modalConfig, setModalConfig] = useState({ isOpen: false, type: 'alert', message: '', onConfirm: null, initialValue: '' });
 
             const openModal = (message, type = 'alert', onConfirm = null, onCancel = null, initialValue = '') => { setModalConfig({ isOpen: true, type, message, onConfirm: (val) => { if (onConfirm) onConfirm(val); setModalConfig(prev => ({ ...prev, isOpen: false })); }, onCancel: () => { if (onCancel) onCancel(); setModalConfig(prev => ({ ...prev, isOpen: false })); }, initialValue }); };
@@ -1215,15 +1233,6 @@
                                 <div><label className="block text-xs font-bold text-green-600 mb-1">고객 주소록 시트 ID</label><input type="text" value={customerSheetId} onChange={(e)=>setCustomerSheetId(e.target.value)} className="w-full border rounded px-2 py-1.5 text-xs text-gray-600 font-mono" /></div>
                                 <div><label className="block text-xs font-bold text-gray-500 mb-1">기본 배송비</label><input type="number" value={quickShipping} onChange={(e)=>setQuickShipping(Number(e.target.value))} className="w-full border rounded px-2 py-1.5 text-sm" /></div>
                                 
-                                <div className="border-t pt-4">
-                                    <h4 className="text-sm font-bold text-slate-800 mb-2 flex items-center gap-1"><Icon name="magic-wand" weight="fill" className="text-purple-600"/> AI 자동화 설정</h4>
-                                    <div>
-                                        <label className="block text-xs font-bold text-gray-500 mb-1">OpenAI API Key (sk-...)</label>
-                                        <input type="password" value={openAiApiKey} onChange={(e)=>setOpenAiApiKey(e.target.value)} className="w-full border rounded px-2 py-1.5 text-xs font-mono" placeholder="API 키를 입력하세요" />
-                                        <p className="text-[10px] text-gray-400 mt-1">※ 재고 탭에 등록된 상품을 기준으로 AI가 댓글을 분석합니다. 키는 현재 브라우저에만 안전하게 저장됩니다.</p>
-                                    </div>
-                                </div>
-
                                 <div className="border-t pt-4"><h4 className="text-sm font-bold text-slate-800 mb-2 flex items-center gap-1"><Icon name="chat-text" weight="fill"/> 주문서 멘트 설정</h4><div className="space-y-3">
                                     <div><label className="block text-[10px] font-bold text-gray-500 mb-1">닉네임 이모지</label><input type="text" value={templateConfig.emoji} onChange={(e)=>setTemplateConfig({...templateConfig, emoji: e.target.value})} className="w-full border rounded px-2 py-1.5 text-sm" /></div>
                                     <div className="flex flex-wrap gap-1 bg-slate-50 p-1.5 rounded border border-slate-100">{["💙", "💖", "💛", "💚", "💜", "🤍", "⭐", "🌟", "✨", "🌸", "🌼", "🍀", "✅", "🎁", "📢", "🌈", "🔥", "💎"].map(em => (<button key={em} onClick={() => setTemplateConfig({...templateConfig, emoji: em})} className="w-5 h-5 flex items-center justify-center hover:bg-white rounded hover:shadow-sm transition-all text-xs">{em}</button>))}</div>
@@ -1238,7 +1247,7 @@
                         </div>
                     )}
                      <main className="flex-1 overflow-hidden bg-gray-200 p-2 relative">
-                        {activeTab === 'live' && <LiveTab {...{ orders, setOrders, productHistory, setProductHistory, quickShipping, shippingOverrides, setShippingOverrides, bankAccount, googleScriptUrl, addresses, cardPayments, setCardPayments, resetAllStatus, matchedDeposits, setMatchedDeposits, depositorNames, setDepositorNames, clickedChats, setClickedChats, openModal, keywords, setKeywords, sentAddressRequests, setSentAddressRequests, deletedDepositIds, setDeletedDepositIds, checkedOrders, setCheckedOrders, addressMapping, setAddressMapping, templateConfig, specialCustomers, inventory, openAiApiKey }} />}
+                        {activeTab === 'live' && <LiveTab {...{ orders, setOrders, productHistory, setProductHistory, quickShipping, shippingOverrides, setShippingOverrides, bankAccount, googleScriptUrl, addresses, cardPayments, setCardPayments, resetAllStatus, matchedDeposits, setMatchedDeposits, depositorNames, setDepositorNames, clickedChats, setClickedChats, openModal, keywords, setKeywords, sentAddressRequests, setSentAddressRequests, deletedDepositIds, setDeletedDepositIds, checkedOrders, setCheckedOrders, addressMapping, setAddressMapping, templateConfig, specialCustomers, inventory }} />}
                         {activeTab === 'status' && <OrderStatusTab {...{ orders, setOrders, setProductHistory, productHistory, inventory, setInventory }} />}
                         {activeTab === 'customer' && <CustomerTab {...{ addresses, setAddresses, googleScriptUrl, customerSheetId, openModal, specialCustomers, setSpecialCustomers }} />}
                         {activeTab === 'cs' && <CSTab {...{ csData, setCsData, openModal }} />}
