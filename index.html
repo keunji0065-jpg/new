@@ -1,175 +1,312 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Manufacturing Process Flowchart - Cellina Co., Ltd.</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        @media print {
-            body { background-color: white; }
-            .no-print { display: none; }
-            .print-container { 
-                width: 100%; 
-                max-width: 100%; 
-                margin: 0; 
-                padding: 20px;
-                box-shadow: none;
-            }
-            @page {
-                size: A4;
-                margin: 1cm;
-            }
-        }
-        .flow-step {
-            position: relative;
-        }
-        .flow-step:not(:last-child)::after {
-            content: '↓';
-            position: absolute;
-            bottom: -24px;
-            left: 50%;
-            transform: translateX(-50%);
-            font-size: 20px;
-            color: #94a3b8;
-        }
-        .ccp-badge {
-            background-color: #fee2e2;
-            color: #991b1b;
-            font-size: 0.75rem;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-weight: 600;
-            display: inline-block;
-            margin-top: 4px;
-        }
-    </style>
-</head>
-<body class="bg-gray-100 py-10 px-4 font-sans">
+import React, { useState, useEffect, useCallback } from 'react';
+import { Printer, Plus, Trash2, Palette, Info, CheckCircle2, GripVertical } from 'lucide-react';
 
-    <!-- Control Panel (No Print) -->
- 
-        </button>
-    </div>
+const App = () => {
+  // 초기 데이터 (사용자가 제공한 286개 데이터를 기반으로 구성된 샘플 구조)
+  const [items, setItems] = useState([
+    { id: 1, cat: "기능성/수면&안정", name: "가바(GABA)", origin: "-", vendor: "고연식품" },
+    { id: 2, cat: "기능성/수면&안정", name: "리포좀타트체리(2%)", origin: "미국", vendor: "채움바이오" },
+    { id: 3, cat: "기능성/수면&안정", name: "흑하랑상추추출분말", origin: "국산", vendor: "올담" },
+    { id: 4, cat: "농축액/과일", name: "레몬과즙분말", origin: "미국", vendor: "해찬솔" },
+    { id: 5, cat: "농축액/과일", name: "복숭아과즙분말", origin: "국산", vendor: "올담" },
+    { id: 6, cat: "무기질", name: "건조효모 망간", origin: "-", vendor: "-" },
+    { id: 7, cat: "무기질", name: "건조효모 요오드", origin: "-", vendor: "-" },
+    { id: 8, cat: "무기질", name: "건조효모 셀렌", origin: "-", vendor: "-" },
+    { id: 9, cat: "비타민", name: "중성비타민C", origin: "-", vendor: "-" },
+    { id: 10, cat: "비타민", name: "비타민B12 0.1%", origin: "-", vendor: "-" },
+    { id: 11, cat: "당류/감미료", name: "수크랄로스", origin: "-", vendor: "-" },
+    { id: 12, cat: "당류/감미료", name: "스테비아", origin: "-", vendor: "-" },
+  ]);
 
-    <!-- Main Document -->
-    <div class="max-w-4xl mx-auto bg-white p-12 shadow-xl border border-gray-200 print-container">
+  const [categoryThemes, setCategoryThemes] = useState({
+    "기능성/수면&안정": "#4f46e5",
+    "농축액/과일": "#dc2626",
+    "무기질": "#475569",
+    "비타민": "#d97706",
+    "당류/감미료": "#db2777",
+    "향료/분말": "#0891b2",
+    "향료/액상": "#06b6d4",
+    "기타": "#111827"
+  });
+
+  // 셀 데이터 수정 (제품명, 원산지, 공급사)
+  const handleEdit = (id, field, value) => {
+    setItems(prev => prev.map(item => item.id === id ? { ...item, [field]: value } : item));
+  };
+
+  // 분류 제목(카테고리명) 수정
+  const handleRenameCategory = (oldName, newName) => {
+    if (oldName === newName) return;
+    
+    // 1. 아이템들의 카테고리명 변경
+    setItems(prev => prev.map(item => item.cat === oldName ? { ...item, cat: newName } : item));
+    
+    // 2. 테마 색상 키값 변경
+    setCategoryThemes(prev => {
+      const newThemes = { ...prev };
+      if (newThemes[oldName]) {
+        newThemes[newName] = newThemes[oldName];
+        delete newThemes[oldName];
+      } else {
+        newThemes[newName] = "#334155";
+      }
+      return newThemes;
+    });
+  };
+
+  // 엔터 키 입력 시 줄 추가 로직
+  const handleKeyDown = (e, id, category) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const catItems = items.filter(i => i.cat === category);
+      const isLast = catItems[catItems.length - 1].id === id;
+
+      if (isLast) {
+        const newId = Date.now();
+        setItems(prev => [...prev, { id: newId, cat: category, name: "", origin: "-", vendor: "" }]);
         
-        <!-- Header -->
-        <div class="text-center border-b-2 border-gray-900 pb-6 mb-8">
-            <h1 class="text-3xl font-bold text-gray-900 uppercase tracking-wider mb-2">Manufacturing Process Flowchart</h1>
-            <p class="text-xl text-gray-700 font-semibold">Cellina Co., Ltd.</p>
-        </div>
+        // 새로 추가된 줄의 제품명 칸으로 포커스 자동 이동
+        setTimeout(() => {
+          const inputs = document.querySelectorAll(`[data-cat="${category}"] .item-name-input`);
+          inputs[inputs.length - 1]?.focus();
+        }, 50);
+      }
+    }
+  };
 
-        <!-- Product Information -->
-        <div class="grid grid-cols-2 gap-4 mb-8 bg-gray-50 p-4 rounded-lg border border-gray-200">
+  // 행 삭제
+  const deleteItem = (id) => {
+    setItems(prev => prev.filter(item => item.id !== id));
+  };
+
+  // 분류 추가
+  const addCategory = () => {
+    const newCatName = `새 분류 ${Object.keys(categoryThemes).length + 1}`;
+    setCategoryThemes(prev => ({ ...prev, [newCatName]: "#6366f1" }));
+    setItems(prev => [...prev, { id: Date.now(), cat: newCatName, name: "", origin: "-", vendor: "" }]);
+  };
+
+  // 인쇄 실행
+  const triggerPrint = () => {
+    window.print();
+  };
+
+  const categories = [...new Set(items.map(i => i.cat))];
+
+  return (
+    <div className="min-h-screen bg-slate-100 pb-20">
+      {/* 상단 헤더 */}
+      <header className="no-print bg-white border-b sticky top-0 z-50 px-6 py-4 shadow-sm">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+          <div className="flex items-center gap-3">
+            <div className="bg-blue-600 p-2 rounded-xl">
+              <CheckCircle2 className="text-white w-6 h-6" />
+            </div>
             <div>
-                <p class="text-xs text-gray-500 uppercase font-bold">Product Names</p>
-                <ul class="text-sm font-semibold text-gray-800 list-disc list-inside">
-                    <li>Sunshine Glutathione 10X</li>
-                    <li>Dr.Diet Immun Liposome Multi Vitamin</li>
-                </ul>
+              <h1 className="text-xl font-black text-slate-900 tracking-tight">CELLINA INVENTORY MGR</h1>
+              <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">Inventory Management & Print Tool</p>
             </div>
-            <div class="text-right">
-                <p class="text-xs text-gray-500 uppercase font-bold">Facility Location</p>
-                <p class="text-sm font-semibold text-gray-800">Gwangju, Republic of Korea</p>
-            </div>
+          </div>
+          
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={addCategory}
+              className="flex items-center gap-2 bg-slate-800 hover:bg-black text-white px-5 py-3 rounded-xl font-bold transition-all text-sm"
+            >
+              <Plus size={18} /> 분류 추가
+            </button>
+            <button 
+              onClick={triggerPrint}
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-xl font-black transition-all shadow-lg shadow-blue-200 text-base"
+            >
+              <Printer size={20} /> 대장 인쇄하기
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* 메인 편집 영역 */}
+      <main className="max-w-7xl mx-auto p-6 space-y-10 no-print">
+        <div className="bg-white border-l-8 border-blue-500 p-5 rounded-xl shadow-sm flex items-start gap-4">
+          <div className="bg-blue-100 p-2 rounded-lg text-blue-600"><Info size={24}/></div>
+          <div>
+            <h3 className="font-bold text-slate-900 text-lg">스마트 편집 가이드</h3>
+            <ul className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 mt-2 text-sm text-slate-600">
+              <li>• <b>분류 제목</b>을 클릭하여 이름을 직접 바꿀 수 있습니다.</li>
+              <li>• <b>색상 아이콘</b>을 눌러 분류별 테마색을 지정하세요.</li>
+              <li>• 마지막 칸에서 <b>엔터(Enter)</b>를 치면 즉시 줄이 추가됩니다.</li>
+              <li>• 인쇄 시 <b>가로 방향</b>으로 3단 자동 정렬되어 출력됩니다.</li>
+            </ul>
+          </div>
         </div>
 
-        <!-- Flowchart Visual -->
-        <div class="space-y-8 flex flex-col items-center mb-12">
-            
-            <!-- Step 1 -->
-            <div class="flow-step w-80 text-center border-2 border-gray-800 p-3 bg-white rounded shadow-sm">
-                <span class="block text-[10px] text-gray-400 font-bold uppercase">Step 01</span>
-                <p class="font-bold text-gray-900 uppercase">Receiving & Storage</p>
-                <p class="text-[11px] text-gray-600">Raw Materials & Packaging Materials</p>
+        <div className="space-y-12">
+          {categories.map(cat => (
+            <div key={cat} className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden" data-cat={cat}>
+              {/* 카테고리 헤더 (수정 가능) */}
+              <div className="px-6 py-5 flex justify-between items-center border-b" style={{ backgroundColor: categoryThemes[cat] || '#334155' }}>
+                <div className="flex items-center gap-4 flex-1">
+                  <input 
+                    value={cat}
+                    onChange={(e) => handleRenameCategory(cat, e.target.value)}
+                    className="bg-white/10 hover:bg-white/20 focus:bg-white text-2xl font-black text-white focus:text-slate-900 rounded-lg px-3 py-1 outline-none transition-all w-full max-w-md border border-transparent focus:border-white"
+                    title="분류 제목 수정"
+                  />
+                  <div className="flex items-center gap-2 bg-black/20 p-1.5 rounded-lg border border-white/20">
+                    <Palette size={16} className="text-white" />
+                    <input 
+                      type="color" 
+                      value={categoryThemes[cat] || '#334155'} 
+                      onChange={(e) => setCategoryThemes(prev => ({ ...prev, [cat]: e.target.value }))}
+                      className="w-8 h-8 border-none bg-transparent cursor-pointer rounded-md overflow-hidden"
+                    />
+                  </div>
+                </div>
+                <div className="text-white/70 font-bold text-sm bg-black/20 px-3 py-1 rounded-full border border-white/10">
+                  {items.filter(i => i.cat === cat).length} 품목
+                </div>
+              </div>
+              
+              {/* 품목 테이블 */}
+              <div className="p-2">
+                <table className="w-full">
+                  <thead>
+                    <tr className="text-slate-400 text-xs font-black uppercase tracking-tighter border-b border-slate-100">
+                      <th className="w-16 py-4">V</th>
+                      <th className="text-left px-4">제품명 (모든 항목 수정 가능)</th>
+                      <th className="w-40 text-left px-4">원산지</th>
+                      <th className="w-60 text-left px-4">제조사/공급사 (엔터: 줄 추가)</th>
+                      <th className="w-16"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {items.filter(i => i.cat === cat).map((item) => (
+                      <tr key={item.id} className="group hover:bg-blue-50/50 transition-colors">
+                        <td className="py-4 text-center">
+                          <div className="w-5 h-5 border-2 border-slate-200 rounded-lg mx-auto bg-white group-hover:border-blue-400"></div>
+                        </td>
+                        <td className="px-4">
+                          <input 
+                            value={item.name} 
+                            placeholder="제품명을 입력하세요"
+                            className="w-full bg-transparent border-none focus:ring-2 focus:ring-blue-500 rounded-md px-2 py-1 font-bold text-slate-800 item-name-input outline-none"
+                            onChange={(e) => handleEdit(item.id, 'name', e.target.value)}
+                          />
+                        </td>
+                        <td className="px-4">
+                          <input 
+                            value={item.origin} 
+                            className="w-full bg-transparent border-none focus:ring-2 focus:ring-blue-500 rounded-md px-2 py-1 text-slate-600 font-medium outline-none"
+                            onChange={(e) => handleEdit(item.id, 'origin', e.target.value)}
+                          />
+                        </td>
+                        <td className="px-4">
+                          <input 
+                            value={item.vendor} 
+                            placeholder="공급사"
+                            className="w-full bg-transparent border-none focus:ring-2 focus:ring-blue-500 rounded-md px-2 py-1 text-slate-500 outline-none"
+                            onChange={(e) => handleEdit(item.id, 'vendor', e.target.value)}
+                            onKeyDown={(e) => handleKeyDown(e, item.id, cat)}
+                          />
+                        </td>
+                        <td className="text-center opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => deleteItem(item.id)} className="text-slate-300 hover:text-red-500 transition-colors">
+                            <Trash2 size={18} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-
-            <!-- Step 2 -->
-            <div class="flow-step w-80 text-center border-2 border-gray-800 p-3 bg-white rounded shadow-sm">
-                <span class="block text-[10px] text-gray-400 font-bold uppercase">Step 02</span>
-                <p class="font-bold text-gray-900 uppercase">Weighing</p>
-                <p class="text-[11px] text-gray-600">Precision Measurement per Formula</p>
-            </div>
-
-            <!-- Step 3 -->
-            <div class="flow-step w-80 text-center border-2 border-gray-800 p-3 bg-white rounded shadow-sm">
-                <span class="block text-[10px] text-gray-400 font-bold uppercase">Step 03</span>
-                <p class="font-bold text-gray-900 uppercase">1st Transfer</p>
-                <p class="text-[11px] text-gray-600">To Mixing Tank</p>
-            </div>
-
-            <!-- Step 4 -->
-            <div class="flow-step w-80 text-center border-2 border-blue-600 p-3 bg-blue-50 rounded shadow-sm">
-                <span class="block text-[10px] text-blue-400 font-bold uppercase">Step 04</span>
-                <p class="font-bold text-blue-900 uppercase">Mixing (Agitation)</p>
-                <p class="text-[11px] text-blue-700">Duration: 60 Minutes</p>
-            </div>
-
-            <!-- Step 5 (CCP) -->
-            <div class="flow-step w-80 text-center border-4 border-red-600 p-3 bg-red-50 rounded shadow-md">
-                <span class="block text-[10px] text-red-400 font-bold uppercase">Step 05</span>
-                <p class="font-bold text-red-900 uppercase">Sterilization</p>
-                <p class="text-[12px] text-red-700 font-bold">70°C for 60 Minutes</p>
-                <span class="ccp-badge uppercase">Critical Process</span>
-            </div>
-
-            <!-- Step 6 -->
-            <div class="flow-step w-80 text-center border-2 border-gray-800 p-3 bg-white rounded shadow-sm">
-                <span class="block text-[10px] text-gray-400 font-bold uppercase">Step 06</span>
-                <p class="font-bold text-gray-900 uppercase">Filtration</p>
-                <p class="text-[11px] text-gray-600">Removal of Impurities</p>
-            </div>
-
-            <!-- Step 7 -->
-            <div class="flow-step w-80 text-center border-2 border-gray-800 p-3 bg-white rounded shadow-sm">
-                <span class="block text-[10px] text-gray-400 font-bold uppercase">Step 07</span>
-                <p class="font-bold text-gray-900 uppercase">2nd Transfer</p>
-                <p class="text-[11px] text-gray-600">To Filling Line</p>
-            </div>
-
-            <!-- Step 8 -->
-            <div class="flow-step w-80 text-center border-2 border-gray-800 p-3 bg-white rounded shadow-sm">
-                <span class="block text-[10px] text-gray-400 font-bold uppercase">Step 08</span>
-                <p class="font-bold text-gray-900 uppercase">Inner Packaging</p>
-                <p class="text-[11px] text-gray-600">Primary Packaging: PE Film</p>
-            </div>
-
-            <!-- Step 9 -->
-            <div class="flow-step w-80 text-center border-2 border-gray-800 p-3 bg-white rounded shadow-sm">
-                <span class="block text-[10px] text-gray-400 font-bold uppercase">Step 09</span>
-                <p class="font-bold text-gray-900 uppercase">Carton Packaging</p>
-                <p class="text-[11px] text-gray-600">Secondary Packaging</p>
-            </div>
-
-            <!-- Step 10 -->
-            <div class="flow-step w-80 text-center border-2 border-gray-800 p-3 bg-white rounded shadow-sm">
-                <span class="block text-[10px] text-gray-400 font-bold uppercase">Step 10</span>
-                <p class="font-bold text-gray-900 uppercase">Box Packaging</p>
-                <p class="text-[11px] text-gray-600">Tertiary Packaging: Carton Box</p>
-            </div>
-
-            <!-- Step 11 -->
-            <div class="w-80 text-center border-2 border-gray-800 p-3 bg-white rounded shadow-sm">
-                <span class="block text-[10px] text-gray-400 font-bold uppercase">Step 11</span>
-                <p class="font-bold text-gray-900 uppercase">Storage & Shipping</p>
-                <p class="text-[11px] text-gray-600">Controlled Distribution</p>
-            </div>
-
+          ))}
         </div>
+      </main>
 
-        <!-- Footer / Certification -->
-        <div class="mt-16 border-t border-gray-200 pt-8 flex justify-between items-end">
-            <div class="text-sm text-gray-500">
-                <p>Document No: CP-FLOW-2026-01</p>
-                <p>Revision: 1.0</p>
-            </div>
-           
-            </div>
-        </div>
+      {/* 인쇄 레이아웃 영역 (화면에서는 숨김) */}
+      <div className="hidden print:block bg-white min-h-screen">
+        <PrintView items={items} themes={categoryThemes} />
+      </div>
 
+      <style dangerouslySetInnerHTML={{ __html: `
+        @media print {
+          @page { size: A4 landscape; margin: 5mm; }
+          .no-print { display: none !important; }
+          body { background: white !important; }
+        }
+      `}} />
     </div>
+  );
+};
 
-</body>
-</html>
+// 인쇄 전용 3단 레이아웃 컴포넌트
+const PrintView = ({ items, themes }) => {
+  const categories = [...new Set(items.map(i => i.cat))];
+
+  const renderTable = (catName) => {
+    const list = items.filter(i => i.cat === catName).sort((a,b) => a.name.localeCompare(b.name));
+    if (list.length === 0) return null;
+    const color = themes[catName] || "#334155";
+
+    return (
+      <div key={catName} className="mb-6 break-inside-avoid border border-slate-300 rounded-md overflow-hidden">
+        <div style={{ backgroundColor: color }} className="text-white text-lg font-black px-3 py-1.5 flex justify-between items-center border-b border-slate-800">
+          <span>{catName}</span>
+        </div>
+        <table className="w-full text-[10px] border-collapse">
+          <thead>
+            <tr className="bg-slate-50 border-b border-slate-300">
+              <th className="w-6 border-r border-slate-300 py-1 font-bold text-slate-600">V</th>
+              <th className="text-left px-2 border-r border-slate-300 font-bold text-slate-600">제품명</th>
+              <th className="w-14 border-r border-slate-300 font-bold text-slate-600">원산지</th>
+              <th className="text-left px-2 font-bold text-slate-600">공급사</th>
+            </tr>
+          </thead>
+          <tbody>
+            {list.map(item => (
+              <tr key={item.id} className="border-b border-slate-200 last:border-0">
+                <td className="border-r border-slate-200 text-center py-1">
+                  <div className="w-3.5 h-3.5 border border-slate-400 mx-auto bg-white"></div>
+                </td>
+                <td className="px-2 border-r border-slate-200 font-bold text-black text-[11px] leading-tight">{item.name || "-"}</td>
+                <td className="px-1 border-r border-slate-200 text-center text-slate-500 leading-tight">{item.origin}</td>
+                <td className="px-2 text-slate-400 truncate leading-tight text-[9px]">{item.vendor}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
+  // 1단 1분류 배치를 위한 그룹화 로직 (한 페이지에 3개 단)
+  const renderPages = () => {
+    // 요청에 따른 1페이지 고정 순서 (기능성수면 -> 농축과일 -> 무기질)
+    const fixedOrder = ["기능성/수면&안정", "농축액/과일", "무기질"];
+    const otherCats = categories.filter(c => !fixedOrder.includes(c)).sort();
+    const finalOrder = [...fixedOrder, ...otherCats];
+
+    const pages = [];
+    for (let i = 0; i < finalOrder.length; i += 3) {
+      pages.push(
+        <div key={i} className="flex gap-4 w-full h-[180mm] mb-12 overflow-hidden page-break-after-always">
+          <div className="flex-1 min-w-0 border-r border-dashed border-slate-300 pr-2">
+            {renderTable(finalOrder[i])}
+          </div>
+          <div className="flex-1 min-w-0 border-r border-dashed border-slate-300 pr-2">
+            {renderTable(finalOrder[i+1])}
+          </div>
+          <div className="flex-1 min-w-0">
+            {renderTable(finalOrder[i+2])}
+          </div>
+        </div>
+      );
+    }
+    return pages;
+  };
+
+  return <div className="p-2">{renderPages()}</div>;
+};
+
+export default App;
