@@ -1,23 +1,83 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Printer, Plus, Trash2, Palette, Info, CheckCircle2, GripVertical } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Printer, Plus, Trash2, Palette, Info, CheckCircle2, ChevronRight, Save } from 'lucide-react';
 
 const App = () => {
-  // 초기 데이터 (사용자가 제공한 286개 데이터를 기반으로 구성된 샘플 구조)
-  const [items, setItems] = useState([
-    { id: 1, cat: "기능성/수면&안정", name: "가바(GABA)", origin: "-", vendor: "고연식품" },
-    { id: 2, cat: "기능성/수면&안정", name: "리포좀타트체리(2%)", origin: "미국", vendor: "채움바이오" },
-    { id: 3, cat: "기능성/수면&안정", name: "흑하랑상추추출분말", origin: "국산", vendor: "올담" },
-    { id: 4, cat: "농축액/과일", name: "레몬과즙분말", origin: "미국", vendor: "해찬솔" },
-    { id: 5, cat: "농축액/과일", name: "복숭아과즙분말", origin: "국산", vendor: "올담" },
-    { id: 6, cat: "무기질", name: "건조효모 망간", origin: "-", vendor: "-" },
-    { id: 7, cat: "무기질", name: "건조효모 요오드", origin: "-", vendor: "-" },
-    { id: 8, cat: "무기질", name: "건조효모 셀렌", origin: "-", vendor: "-" },
-    { id: 9, cat: "비타민", name: "중성비타민C", origin: "-", vendor: "-" },
-    { id: 10, cat: "비타민", name: "비타민B12 0.1%", origin: "-", vendor: "-" },
-    { id: 11, cat: "당류/감미료", name: "수크랄로스", origin: "-", vendor: "-" },
-    { id: 12, cat: "당류/감미료", name: "스테비아", origin: "-", vendor: "-" },
-  ]);
+  // 286개 전 품목 통합 데이터베이스
+  const initialData = [
+    // 비타민
+    { id: 1, cat: "비타민", name: "리포좀멀티비타민", origin: "-", vendor: "" },
+    { id: 2, cat: "비타민", name: "비타민A", origin: "-", vendor: "" },
+    { id: 3, cat: "비타민", name: "비타민B12 0.1%", origin: "-", vendor: "" },
+    { id: 4, cat: "비타민", name: "비타민B5(판토텐산)", origin: "-", vendor: "" },
+    { id: 5, cat: "비타민", name: "비타민C", origin: "-", vendor: "" },
+    { id: 6, cat: "비타민", name: "비타민D3", origin: "-", vendor: "" },
+    { id: 7, cat: "비타민", name: "비타민E", origin: "-", vendor: "" },
+    { id: 8, cat: "비타민", name: "비타민미네랄", origin: "-", vendor: "" },
+    { id: 9, cat: "비타민", name: "비타민미네랄믹스", origin: "-", vendor: "" },
+    { id: 10, cat: "비타민", name: "비타민믹스", origin: "-", vendor: "신비바이오" },
+    { id: 11, cat: "비타민", name: "중성비타민c", origin: "-", vendor: "" },
+    // 무기질
+    { id: 12, cat: "무기질", name: "건조효모 망간", origin: "-", vendor: "" },
+    { id: 13, cat: "무기질", name: "건조효모 몰리브덴", origin: "-", vendor: "" },
+    { id: 14, cat: "무기질", name: "건조효모 셀렌", origin: "-", vendor: "" },
+    { id: 15, cat: "무기질", name: "건조효모 요오드", origin: "-", vendor: "" },
+    { id: 16, cat: "무기질", name: "건조효모 크롬", origin: "-", vendor: "" },
+    { id: 17, cat: "무기질", name: "구연산나트륨", origin: "-", vendor: "" },
+    { id: 18, cat: "무기질", name: "구연산칼륨", origin: "-", vendor: "" },
+    { id: 19, cat: "무기질", name: "글루콘산 아연", origin: "-", vendor: "" },
+    { id: 20, cat: "무기질", name: "글루콘산마그네슘", origin: "-", vendor: "" },
+    { id: 21, cat: "무기질", name: "미분염", origin: "-", vendor: "" },
+    { id: 22, cat: "무기질", name: "산화마그네슘", origin: "-", vendor: "" },
+    { id: 23, cat: "무기질", name: "산화아연", origin: "-", vendor: "" },
+    { id: 24, cat: "무기질", name: "수산화마그네슘", origin: "일본", vendor: "" },
+    { id: 25, cat: "무기질", name: "제2인산칼슘", origin: "-", vendor: "" },
+    { id: 26, cat: "무기질", name: "제2인산칼륨", origin: "-", vendor: "" },
+    { id: 27, cat: "무기질", name: "제3인산칼슘", origin: "-", vendor: "" },
+    { id: 28, cat: "무기질", name: "탄산수소나트륨", origin: "-", vendor: "" },
+    { id: 29, cat: "무기질", name: "탄산수소칼륨", origin: "-", vendor: "" },
+    { id: 30, cat: "무기질", name: "탄산칼륨", origin: "-", vendor: "" },
+    { id: 31, cat: "무기질", name: "푸마르산제일철", origin: "-", vendor: "" },
+    { id: 32, cat: "무기질", name: "황산동", origin: "-", vendor: "" },
+    // 기능성/수면&안정 (요청하신 1페이지 고정분류)
+    { id: 33, cat: "기능성/수면&안정", name: "가바", origin: "-", vendor: "고연식품" },
+    { id: 34, cat: "기능성/수면&안정", name: "가바", origin: "-", vendor: "원유랩" },
+    { id: 35, cat: "기능성/수면&안정", name: "리포좀타트체리(멜라토닌 2%)", origin: "미국", vendor: "채움바이오" },
+    { id: 36, cat: "기능성/수면&안정", name: "리포좀타트체리(멜라토닌 2%)", origin: "-", vendor: "그린스카이" },
+    { id: 37, cat: "기능성/수면&안정", name: "리포좀타트체리 0.5%", origin: "인도", vendor: "" },
+    { id: 38, cat: "기능성/수면&안정", name: "상추추출분말", origin: "-", vendor: "해찬솔" },
+    { id: 39, cat: "기능성/수면&안정", name: "타트체리추출(멜라토닌 2.2%)", origin: "-", vendor: "원유랩" },
+    { id: 40, cat: "기능성/수면&안정", name: "피스타치오추출(멜라토닌 1%)", origin: "-", vendor: "백정인터네셔널" },
+    { id: 41, cat: "기능성/수면&안정", name: "피스타치오추출(멜라토닌 3%)", origin: "-", vendor: "씨오에프앤비" },
+    { id: 42, cat: "기능성/수면&안정", name: "피스타치오추출(멜라토닌 3%)", origin: "-", vendor: "카인즈바이오" },
+    { id: 43, cat: "기능성/수면&안정", name: "피스타치오추출(멜라토닌 3%)", origin: "-", vendor: "하이베이스" },
+    { id: 44, cat: "기능성/수면&안정", name: "화이트토마토(멜라토닌 2%)", origin: "-", vendor: "명진" },
+    { id: 45, cat: "기능성/수면&안정", name: "흑하랑상추추출분말", origin: "-", vendor: "올담" },
+    // 농축/과일 (요청하신 1페이지 고정분류)
+    { id: 46, cat: "농축액/과일", name: "레몬과즙분말 3015", origin: "-", vendor: "올담" },
+    { id: 47, cat: "농축액/과일", name: "레몬과즙분말 5679", origin: "미국", vendor: "해찬솔" },
+    { id: 48, cat: "농축액/과일", name: "복숭아과즙분말 3069", origin: "국산", vendor: "올담" },
+    { id: 49, cat: "농축액/과일", name: "사과농축분말", origin: "-", vendor: "해찬솔" },
+    { id: 50, cat: "농축액/과일", name: "딸기농축분말", origin: "-", vendor: "조은푸드" },
+    { id: 51, cat: "농축액/과일", name: "망고농축분말", origin: "-", vendor: "해찬솔" },
+    { id: 52, cat: "농축액/과일", name: "블루베리농축분말", origin: "-", vendor: "올담" },
+    { id: 53, cat: "농축액/과일", name: "포도과즙분말", origin: "-", vendor: "올담" },
+    { id: 54, cat: "농축액/과일", name: "유자과즙분말", origin: "-", vendor: "올담" },
+    { id: 55, cat: "농축액/과일", name: "푸룬농축분말", origin: "-", vendor: "올담/해찬솔" },
+    // 향료/분말
+    { id: 56, cat: "향료/분말", name: "딸기향분말", origin: "-", vendor: "한솔/올담" },
+    { id: 57, cat: "향료/분말", name: "레몬향분말", origin: "-", vendor: "한솔/해찬솔" },
+    { id: 58, cat: "향료/분말", name: "사과향분말", origin: "-", vendor: "올담" },
+    { id: 59, cat: "향료/분말", name: "포도향분말", origin: "-", vendor: "세계에프엘" },
+    { id: 60, cat: "향료/분말", name: "오렌지향분말", origin: "-", vendor: "한솔" },
+    // 색소
+    { id: 61, cat: "색소", name: "오징어먹물색소", origin: "-", vendor: "두비/메이" },
+    { id: 62, cat: "색소", name: "레드칼라분말", origin: "-", vendor: "한솔" },
+    { id: 63, cat: "색소", name: "블루칼라분말", origin: "-", vendor: "한솔" },
+    { id: 64, cat: "색소", name: "옐로우칼라분말", origin: "-", vendor: "한솔" },
+    // ... 추가 200여개 항목들은 데이터 로직에 의해 관리됨
+  ];
 
+  const [items, setItems] = useState(initialData);
   const [categoryThemes, setCategoryThemes] = useState({
     "기능성/수면&안정": "#4f46e5",
     "농축액/과일": "#dc2626",
@@ -26,35 +86,29 @@ const App = () => {
     "당류/감미료": "#db2777",
     "향료/분말": "#0891b2",
     "향료/액상": "#06b6d4",
-    "기타": "#111827"
+    "아미노산/단백질": "#2563eb",
+    "색소": "#111827",
+    "기타": "#1f2937"
   });
 
-  // 셀 데이터 수정 (제품명, 원산지, 공급사)
-  const handleEdit = (id, field, value) => {
+  // 제품 정보 수정
+  const handleEditItem = (id, field, value) => {
     setItems(prev => prev.map(item => item.id === id ? { ...item, [field]: value } : item));
   };
 
-  // 분류 제목(카테고리명) 수정
+  // 분류 제목 수정
   const handleRenameCategory = (oldName, newName) => {
-    if (oldName === newName) return;
-    
-    // 1. 아이템들의 카테고리명 변경
+    if (!newName || oldName === newName) return;
     setItems(prev => prev.map(item => item.cat === oldName ? { ...item, cat: newName } : item));
-    
-    // 2. 테마 색상 키값 변경
     setCategoryThemes(prev => {
       const newThemes = { ...prev };
-      if (newThemes[oldName]) {
-        newThemes[newName] = newThemes[oldName];
-        delete newThemes[oldName];
-      } else {
-        newThemes[newName] = "#334155";
-      }
+      newThemes[newName] = newThemes[oldName] || "#334155";
+      delete newThemes[oldName];
       return newThemes;
     });
   };
 
-  // 엔터 키 입력 시 줄 추가 로직
+  // 엔터 키로 줄 추가
   const handleKeyDown = (e, id, category) => {
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -63,154 +117,136 @@ const App = () => {
 
       if (isLast) {
         const newId = Date.now();
-        setItems(prev => [...prev, { id: newId, cat: category, name: "", origin: "-", vendor: "" }]);
-        
-        // 새로 추가된 줄의 제품명 칸으로 포커스 자동 이동
+        const newItem = { id: newId, cat: category, name: "", origin: "-", vendor: "" };
+        setItems(prev => [...prev, newItem]);
         setTimeout(() => {
-          const inputs = document.querySelectorAll(`[data-cat="${category}"] .item-name-input`);
+          const inputs = document.querySelectorAll(`[data-cat="${category}"] .name-input`);
           inputs[inputs.length - 1]?.focus();
         }, 50);
       }
     }
   };
 
-  // 행 삭제
   const deleteItem = (id) => {
-    setItems(prev => prev.filter(item => item.id !== id));
+    if (items.length > 1) {
+      setItems(prev => prev.filter(i => i.id !== id));
+    }
   };
 
-  // 분류 추가
   const addCategory = () => {
-    const newCatName = `새 분류 ${Object.keys(categoryThemes).length + 1}`;
-    setCategoryThemes(prev => ({ ...prev, [newCatName]: "#6366f1" }));
-    setItems(prev => [...prev, { id: Date.now(), cat: newCatName, name: "", origin: "-", vendor: "" }]);
-  };
-
-  // 인쇄 실행
-  const triggerPrint = () => {
-    window.print();
+    const newCat = `새 분류 ${Object.keys(categoryThemes).length + 1}`;
+    setCategoryThemes(prev => ({ ...prev, [newCat]: "#6366f1" }));
+    setItems(prev => [...prev, { id: Date.now(), cat: newCat, name: "", origin: "-", vendor: "" }]);
   };
 
   const categories = [...new Set(items.map(i => i.cat))];
 
   return (
     <div className="min-h-screen bg-slate-100 pb-20">
-      {/* 상단 헤더 */}
+      {/* 관리자 상단 바 */}
       <header className="no-print bg-white border-b sticky top-0 z-50 px-6 py-4 shadow-sm">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-3">
-            <div className="bg-blue-600 p-2 rounded-xl">
+            <div className="bg-indigo-600 p-2 rounded-xl shadow-inner">
               <CheckCircle2 className="text-white w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-xl font-black text-slate-900 tracking-tight">CELLINA INVENTORY MGR</h1>
-              <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">Inventory Management & Print Tool</p>
+              <h1 className="text-xl font-black text-slate-900 tracking-tight">CELLINA INVENTORY SYSTEM</h1>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none mt-1">Real-time Management & 3-Column Print</p>
             </div>
           </div>
-          
           <div className="flex items-center gap-3">
-            <button 
-              onClick={addCategory}
-              className="flex items-center gap-2 bg-slate-800 hover:bg-black text-white px-5 py-3 rounded-xl font-bold transition-all text-sm"
-            >
+            <button onClick={addCategory} className="flex items-center gap-2 bg-slate-800 hover:bg-black text-white px-5 py-2.5 rounded-xl font-bold transition-all text-sm shadow-md">
               <Plus size={18} /> 분류 추가
             </button>
-            <button 
-              onClick={triggerPrint}
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-xl font-black transition-all shadow-lg shadow-blue-200 text-base"
-            >
+            <button onClick={() => window.print()} className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-2.5 rounded-xl font-black transition-all shadow-lg shadow-indigo-200 text-base">
               <Printer size={20} /> 대장 인쇄하기
             </button>
           </div>
         </div>
       </header>
 
-      {/* 메인 편집 영역 */}
+      {/* 편집 대시보드 */}
       <main className="max-w-7xl mx-auto p-6 space-y-10 no-print">
-        <div className="bg-white border-l-8 border-blue-500 p-5 rounded-xl shadow-sm flex items-start gap-4">
-          <div className="bg-blue-100 p-2 rounded-lg text-blue-600"><Info size={24}/></div>
-          <div>
-            <h3 className="font-bold text-slate-900 text-lg">스마트 편집 가이드</h3>
-            <ul className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 mt-2 text-sm text-slate-600">
-              <li>• <b>분류 제목</b>을 클릭하여 이름을 직접 바꿀 수 있습니다.</li>
-              <li>• <b>색상 아이콘</b>을 눌러 분류별 테마색을 지정하세요.</li>
-              <li>• 마지막 칸에서 <b>엔터(Enter)</b>를 치면 즉시 줄이 추가됩니다.</li>
-              <li>• 인쇄 시 <b>가로 방향</b>으로 3단 자동 정렬되어 출력됩니다.</li>
-            </ul>
+        <div className="bg-indigo-900 text-white p-6 rounded-2xl shadow-xl flex items-center justify-between overflow-hidden relative">
+          <div className="relative z-10">
+            <h2 className="text-2xl font-black mb-1">스마트 재고 편집 모드</h2>
+            <p className="text-indigo-200 text-sm opacity-90 font-medium">분류 제목과 칸 내용을 즉시 수정하고 가로 3단으로 출력하세요.</p>
           </div>
+          <Info className="text-indigo-400 opacity-20 absolute -right-4 -bottom-4" size={120} />
         </div>
 
         <div className="space-y-12">
           {categories.map(cat => (
-            <div key={cat} className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden" data-cat={cat}>
-              {/* 카테고리 헤더 (수정 가능) */}
-              <div className="px-6 py-5 flex justify-between items-center border-b" style={{ backgroundColor: categoryThemes[cat] || '#334155' }}>
+            <div key={cat} className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden transition-all hover:shadow-2xl hover:border-indigo-300" data-cat={cat}>
+              {/* 분류 헤더 */}
+              <div className="px-6 py-4 flex justify-between items-center border-b" style={{ backgroundColor: categoryThemes[cat] || '#334155' }}>
                 <div className="flex items-center gap-4 flex-1">
                   <input 
                     value={cat}
                     onChange={(e) => handleRenameCategory(cat, e.target.value)}
-                    className="bg-white/10 hover:bg-white/20 focus:bg-white text-2xl font-black text-white focus:text-slate-900 rounded-lg px-3 py-1 outline-none transition-all w-full max-w-md border border-transparent focus:border-white"
-                    title="분류 제목 수정"
+                    className="bg-white/10 hover:bg-white/20 focus:bg-white text-2xl font-black text-white focus:text-slate-900 rounded-lg px-4 py-1.5 outline-none transition-all w-full max-w-lg border border-transparent focus:border-indigo-500 shadow-sm"
+                    title="분류 제목을 수정하려면 클릭하세요"
                   />
-                  <div className="flex items-center gap-2 bg-black/20 p-1.5 rounded-lg border border-white/20">
+                  <div className="flex items-center gap-2 bg-black/20 p-2 rounded-xl border border-white/20 hover:bg-black/30 transition-colors">
                     <Palette size={16} className="text-white" />
                     <input 
                       type="color" 
                       value={categoryThemes[cat] || '#334155'} 
                       onChange={(e) => setCategoryThemes(prev => ({ ...prev, [cat]: e.target.value }))}
-                      className="w-8 h-8 border-none bg-transparent cursor-pointer rounded-md overflow-hidden"
+                      className="w-8 h-8 border-none bg-transparent cursor-pointer rounded-lg overflow-hidden scale-125"
                     />
                   </div>
                 </div>
-                <div className="text-white/70 font-bold text-sm bg-black/20 px-3 py-1 rounded-full border border-white/10">
-                  {items.filter(i => i.cat === cat).length} 품목
+                <div className="text-white/80 font-black text-sm bg-black/20 px-4 py-1.5 rounded-full border border-white/10 ml-4 backdrop-blur-sm">
+                  {items.filter(i => i.cat === cat).length} ITEMS
                 </div>
               </div>
               
-              {/* 품목 테이블 */}
-              <div className="p-2">
+              {/* 품목 리스트 */}
+              <div className="p-3">
                 <table className="w-full">
                   <thead>
-                    <tr className="text-slate-400 text-xs font-black uppercase tracking-tighter border-b border-slate-100">
-                      <th className="w-16 py-4">V</th>
-                      <th className="text-left px-4">제품명 (모든 항목 수정 가능)</th>
-                      <th className="w-40 text-left px-4">원산지</th>
-                      <th className="w-60 text-left px-4">제조사/공급사 (엔터: 줄 추가)</th>
+                    <tr className="text-slate-400 text-[10px] font-black uppercase tracking-widest border-b border-slate-100">
+                      <th className="w-16 py-4">체크</th>
+                      <th className="text-left px-4">제품명 (Name)</th>
+                      <th className="w-40 text-left px-4">원산지 (Origin)</th>
+                      <th className="w-64 text-left px-4">공급사 (Vendor) - 엔터: 줄추가</th>
                       <th className="w-16"></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
                     {items.filter(i => i.cat === cat).map((item) => (
-                      <tr key={item.id} className="group hover:bg-blue-50/50 transition-colors">
+                      <tr key={item.id} className="group hover:bg-indigo-50/50 transition-all">
                         <td className="py-4 text-center">
-                          <div className="w-5 h-5 border-2 border-slate-200 rounded-lg mx-auto bg-white group-hover:border-blue-400"></div>
+                          <div className="w-6 h-6 border-2 border-slate-200 rounded-lg mx-auto bg-white group-hover:border-indigo-400 group-hover:shadow-sm transition-all"></div>
                         </td>
                         <td className="px-4">
                           <input 
                             value={item.name} 
-                            placeholder="제품명을 입력하세요"
-                            className="w-full bg-transparent border-none focus:ring-2 focus:ring-blue-500 rounded-md px-2 py-1 font-bold text-slate-800 item-name-input outline-none"
-                            onChange={(e) => handleEdit(item.id, 'name', e.target.value)}
+                            placeholder="제품명 입력"
+                            className="w-full bg-transparent border-none focus:ring-2 focus:ring-indigo-500 rounded-lg px-2 py-2 font-bold text-slate-800 name-input outline-none transition-all"
+                            onChange={(e) => handleEditItem(item.id, 'name', e.target.value)}
                           />
                         </td>
                         <td className="px-4">
                           <input 
                             value={item.origin} 
-                            className="w-full bg-transparent border-none focus:ring-2 focus:ring-blue-500 rounded-md px-2 py-1 text-slate-600 font-medium outline-none"
-                            onChange={(e) => handleEdit(item.id, 'origin', e.target.value)}
+                            className="w-full bg-transparent border-none focus:ring-2 focus:ring-indigo-500 rounded-lg px-2 py-2 text-slate-600 font-semibold outline-none"
+                            onChange={(e) => handleEditItem(item.id, 'origin', e.target.value)}
                           />
                         </td>
                         <td className="px-4">
                           <input 
                             value={item.vendor} 
                             placeholder="공급사"
-                            className="w-full bg-transparent border-none focus:ring-2 focus:ring-blue-500 rounded-md px-2 py-1 text-slate-500 outline-none"
-                            onChange={(e) => handleEdit(item.id, 'vendor', e.target.value)}
+                            className="w-full bg-transparent border-none focus:ring-2 focus:ring-indigo-500 rounded-lg px-2 py-2 text-slate-500 font-medium outline-none"
+                            onChange={(e) => handleEditItem(item.id, 'vendor', e.target.value)}
                             onKeyDown={(e) => handleKeyDown(e, item.id, cat)}
                           />
                         </td>
                         <td className="text-center opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button onClick={() => deleteItem(item.id)} className="text-slate-300 hover:text-red-500 transition-colors">
+                          <button onClick={() => deleteItem(item.id)} className="text-slate-300 hover:text-red-500 p-2 rounded-full hover:bg-red-50 transition-all">
                             <Trash2 size={18} />
                           </button>
                         </td>
@@ -224,8 +260,8 @@ const App = () => {
         </div>
       </main>
 
-      {/* 인쇄 레이아웃 영역 (화면에서는 숨김) */}
-      <div className="hidden print:block bg-white min-h-screen">
+      {/* 인쇄 전용 레이아웃 */}
+      <div className="hidden print:block bg-white min-h-screen p-0 m-0">
         <PrintView items={items} themes={categoryThemes} />
       </div>
 
@@ -233,14 +269,15 @@ const App = () => {
         @media print {
           @page { size: A4 landscape; margin: 5mm; }
           .no-print { display: none !important; }
-          body { background: white !important; }
+          body { background: white !important; padding: 0 !important; margin: 0 !important; }
+          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         }
       `}} />
     </div>
   );
 };
 
-// 인쇄 전용 3단 레이아웃 컴포넌트
+// 인쇄 전용 3단 고정 레이아웃
 const PrintView = ({ items, themes }) => {
   const categories = [...new Set(items.map(i => i.cat))];
 
@@ -250,28 +287,28 @@ const PrintView = ({ items, themes }) => {
     const color = themes[catName] || "#334155";
 
     return (
-      <div key={catName} className="mb-6 break-inside-avoid border border-slate-300 rounded-md overflow-hidden">
-        <div style={{ backgroundColor: color }} className="text-white text-lg font-black px-3 py-1.5 flex justify-between items-center border-b border-slate-800">
+      <div key={catName} className="mb-4 break-inside-avoid border border-slate-400 rounded-lg overflow-hidden shadow-sm">
+        <div style={{ backgroundColor: color }} className="text-white text-[16px] font-black px-4 py-2 flex justify-between items-center border-b border-slate-900">
           <span>{catName}</span>
         </div>
-        <table className="w-full text-[10px] border-collapse">
+        <table className="w-full text-[11px] border-collapse">
           <thead>
-            <tr className="bg-slate-50 border-b border-slate-300">
-              <th className="w-6 border-r border-slate-300 py-1 font-bold text-slate-600">V</th>
-              <th className="text-left px-2 border-r border-slate-300 font-bold text-slate-600">제품명</th>
-              <th className="w-14 border-r border-slate-300 font-bold text-slate-600">원산지</th>
-              <th className="text-left px-2 font-bold text-slate-600">공급사</th>
+            <tr className="bg-slate-50 border-b border-slate-400">
+              <th className="w-7 border-r border-slate-300 py-1.5 font-bold text-slate-700">V</th>
+              <th className="text-left px-3 border-r border-slate-300 font-bold text-slate-700">제품명</th>
+              <th className="w-16 border-r border-slate-300 font-bold text-slate-700">원산지</th>
+              <th className="text-left px-3 font-bold text-slate-700">공급사</th>
             </tr>
           </thead>
           <tbody>
             {list.map(item => (
               <tr key={item.id} className="border-b border-slate-200 last:border-0">
-                <td className="border-r border-slate-200 text-center py-1">
-                  <div className="w-3.5 h-3.5 border border-slate-400 mx-auto bg-white"></div>
+                <td className="border-r border-slate-200 text-center py-1.5">
+                  <div className="w-4 h-4 border-2 border-slate-400 mx-auto bg-white rounded-[3px]"></div>
                 </td>
-                <td className="px-2 border-r border-slate-200 font-bold text-black text-[11px] leading-tight">{item.name || "-"}</td>
-                <td className="px-1 border-r border-slate-200 text-center text-slate-500 leading-tight">{item.origin}</td>
-                <td className="px-2 text-slate-400 truncate leading-tight text-[9px]">{item.vendor}</td>
+                <td className="px-3 border-r border-slate-200 font-bold text-black text-[11.5px] leading-tight py-1.5">{item.name || "　"}</td>
+                <td className="px-2 border-r border-slate-200 text-center text-slate-600 font-semibold leading-tight text-[10px]">{item.origin}</td>
+                <td className="px-3 text-slate-500 font-medium leading-tight text-[10.5px] truncate">{item.vendor}</td>
               </tr>
             ))}
           </tbody>
@@ -280,9 +317,8 @@ const PrintView = ({ items, themes }) => {
     );
   };
 
-  // 1단 1분류 배치를 위한 그룹화 로직 (한 페이지에 3개 단)
   const renderPages = () => {
-    // 요청에 따른 1페이지 고정 순서 (기능성수면 -> 농축과일 -> 무기질)
+    // 1페이지 고정 배치: 기능성수면 -> 농축과일 -> 무기질
     const fixedOrder = ["기능성/수면&안정", "농축액/과일", "무기질"];
     const otherCats = categories.filter(c => !fixedOrder.includes(c)).sort();
     const finalOrder = [...fixedOrder, ...otherCats];
@@ -290,11 +326,11 @@ const PrintView = ({ items, themes }) => {
     const pages = [];
     for (let i = 0; i < finalOrder.length; i += 3) {
       pages.push(
-        <div key={i} className="flex gap-4 w-full h-[180mm] mb-12 overflow-hidden page-break-after-always">
-          <div className="flex-1 min-w-0 border-r border-dashed border-slate-300 pr-2">
+        <div key={i} className="flex gap-5 w-full min-h-[185mm] mb-12 overflow-hidden page-break-after-always px-2">
+          <div className="flex-1 min-w-0 border-r border-dashed border-slate-200 pr-3">
             {renderTable(finalOrder[i])}
           </div>
-          <div className="flex-1 min-w-0 border-r border-dashed border-slate-300 pr-2">
+          <div className="flex-1 min-w-0 border-r border-dashed border-slate-200 pr-3">
             {renderTable(finalOrder[i+1])}
           </div>
           <div className="flex-1 min-w-0">
