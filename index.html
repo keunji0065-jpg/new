@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Printer, Plus, Trash2, Palette, Info, CheckCircle2, Search, PlusCircle, Layout } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Printer, Plus, Trash2, Palette, Info, CheckCircle2, Search, Layout } from 'lucide-react';
 
 const App = () => {
   // 286개 전 품목 데이터를 기반으로 구성된 데이터베이스
@@ -219,7 +219,7 @@ const App = () => {
   };
 
   const deleteItem = (id) => {
-    if (confirm("정말 이 품목을 삭제하시겠습니까?")) {
+    if (window.confirm("정말 이 품목을 삭제하시겠습니까?")) {
       setItems(prev => prev.filter(i => i.id !== id));
     }
   };
@@ -262,7 +262,7 @@ const App = () => {
       <main className="max-w-7xl mx-auto p-6 space-y-12 no-print">
         <div className="bg-indigo-900 p-8 rounded-[2.5rem] shadow-2xl relative overflow-hidden flex flex-col md:flex-row justify-between items-center border-4 border-white">
           <div className="relative z-10 text-center md:text-left">
-            <h2 className="text-4xl font-black text-white italic mb-2">SMART INVENTORY EDITOR</h2>
+            <h2 className="text-4xl font-black text-white italic mb-2 text-shadow-sm">MASTER EDIT MODE</h2>
             <p className="text-indigo-200 text-lg font-medium max-w-xl">
               분류 제목을 클릭해 이름을 바꾸고, 표의 내용을 수정하세요.<br/>
               <b>공급사 칸에서 엔터(Enter)</b>를 치면 즉시 줄이 추가됩니다.
@@ -429,8 +429,8 @@ const PrintLayout = ({ items, themes }) => {
   const createPages = () => {
     // 1페이지 고정 배치: 기능성수면 -> 농축액과일 -> 무기질
     const fixed = ["기능성/수면&안정", "농축액/과일", "무기질"];
-    const others = categories.filter(c => !fixed.includes(c)).sort();
-    const order = [...fixed, ...others];
+    const otherCats = categories.filter(c => !fixed.includes(c)).sort();
+    const order = [...fixed, ...otherCats];
 
     const pages = [];
     // 1단 1분류 철저 준수: 각 페이지의 열(Column)에 오직 하나의 카테고리만 들어갑니다.
