@@ -3,326 +3,703 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cellina Master - Realtime Cloud Storage</title>
+    <title>Cellina Cloud | 통합 관리 및 라벨 인쇄 시스템</title>
     <!-- 라이브러리 로드 -->
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
-    
-    <!-- Firebase SDK (Version 11.6.1) -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        
-        window.Firebase = { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, getFirestore, doc, setDoc, onSnapshot, collection };
-    </script>
-
+    <link href="https://fonts.googleapis.com/css2?family=Nanum+Gothic:wght@400;700;800&family=Nanum+Myeongjo:wght@400;700;800&family=Noto+Sans+KR:wght@400;500;700;900&family=Black+Han+Sans&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Noto Sans KR', sans-serif; background-color: #f1f5f9; margin: 0; padding: 0; }
+        body { 
+            font-family: 'Noto Sans KR', sans-serif; 
+            background-color: #f1f5f9; 
+            margin: 0; 
+            padding: 0; 
+            color: #1e293b;
+        }
+        
         @media print {
-            @page { size: A4 landscape; margin: 5mm; }
             .no-print { display: none !important; }
             body { background: white !important; padding: 0 !important; margin: 0 !important; }
-            #paper { box-shadow: none !important; border: none !important; width: 100% !important; margin: 0 !important; padding: 0 !important; }
+            #paper { 
+                box-shadow: none !important; 
+                border: none !important; 
+                width: 100% !important; 
+                margin: 0 !important; 
+                padding: 0mm !important; 
+            }
+            
+            /* 카톤박스 탭 인쇄 시 목록의 모든 선 제거 */
+            .carton-print-no-border,
+            .carton-print-no-border *,
+            .carton-print-no-border .group\/box,
+            .carton-print-no-border table,
+            .carton-print-no-border th,
+            .carton-print-no-border td,
+            .carton-print-no-border thead,
+            .carton-print-no-border tr {
+                border: none !important;
+                border-width: 0 !important;
+                box-shadow: none !important;
+                background-color: transparent !important;
+                color: black !important;
+            }
+
+            /* 라벨 자체 출력 시 테두리 제거 */
+            .label-print-area {
+                width: 297mm !important;
+                height: 210mm !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                border: none !important;
+                box-shadow: none !important;
+            }
             * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-            thead { display: table-header-group; }
-            tr { page-break-inside: avoid; }
         }
-        #paper { background: white; min-height: 190mm; padding: 5mm; margin: 20px auto; box-shadow: 0 10px 25px rgba(0,0,0,0.1); border: 1px solid #ddd; transition: width 0.3s ease; }
-        .draggable-handle { cursor: grab; }
-        .draggable-handle:active { cursor: grabbing; }
-        .color-dot { width: 22px; height: 22px; border-radius: 6px; cursor: pointer; border: 1px solid rgba(0,0,0,0.1); transition: transform 0.1s; }
-        .color-dot:hover { transform: scale(1.15); }
-        td { height: 26px; vertical-align: middle; }
-        input { border: none; background: transparent; width: 100%; outline: none; }
-        .box-container { align-self: start; height: fit-content; }
-        .loader { border: 3px solid #f3f3f3; border-top: 3px solid #4f46e5; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        #paper {
+            background: white;
+            min-height: 210mm;
+            padding: 10mm;
+            margin: 20px auto;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .custom-checkbox {
+            appearance: none;
+            width: 1.25rem;
+            height: 1.25rem;
+            border: 2px solid #cbd5e1;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        .custom-checkbox:checked {
+            background-color: #4f46e5;
+            border-color: #4f46e5;
+        }
+        .custom-checkbox:checked::after {
+            content: '✓';
+            color: white;
+            font-size: 0.75rem;
+            font-weight: bold;
+        }
+
+        .tab-button {
+            padding: 12px 24px;
+            font-weight: 800;
+            font-size: 14px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 12px 12px 0 0;
+            position: relative;
+            bottom: -1px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .tab-inactive { background: #0f172a; color: #64748b; border: 1px solid transparent; }
+        .tab-inactive:hover { background: #1e293b; color: #f8fafc; }
+        .tab-active {
+            background: #ffffff; color: #4f46e5; border: 1px solid #e2e8f0;
+            border-bottom: 2px solid white; box-shadow: 0 -10px 15px -3px rgba(0, 0, 0, 0.05);
+        }
+
+        .color-dot-sm {
+            width: 20px;
+            height: 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: all 0.2s;
+        }
+        .color-dot-sm:hover { transform: scale(1.2); border-color: white; box-shadow: 0 0 0 2px #4f46e5; }
+        
+        .loading-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #f8fafc; z-index: 1000;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            gap: 16px;
+        }
+
+        input:focus { outline: none; }
+        
+        ::-webkit-scrollbar { width: 10px; height: 10px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; border: 2px solid #f1f5f9; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        window.FirebaseSDK = { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, getFirestore, doc, setDoc, onSnapshot, collection };
+    </script>
+
     <script type="text/babel">
-        const { useState, useEffect, useMemo, useRef } = React;
+        const { useState, useEffect, useMemo, useCallback } = React;
 
-        const Icon = ({ name, size = 20, className = "" }) => {
-            return <i data-lucide={name} style={{ width: size, height: size }} className={className}></i>;
-        };
-
-        const PRESET_COLORS = [
-            "#475569", "#dc2626", "#4f46e5", "#d97706", "#db2777", 
-            "#0891b2", "#06b6d4", "#6366f1", "#713f12", "#111827",
-            "#ef4444", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6",
-            "#ec4899", "#64748b", "#22c55e", "#0ea5e9", "#f43f5e"
+        const COMMON_COLORS = [
+            "#000000", "#FFFFFF", "#EF4444", "#F97316", "#F59E0B", "#EAB308", 
+            "#84CC16", "#22C55E", "#10B981", "#06B6D4", "#3B82F6", "#6366F1", 
+            "#8B5CF6", "#A855F7", "#D946EF", "#EC4899", "#71717a", "#475569",
+            "#b91c1c", "#9d174d", "#6d28d9", "#1e40af", "#0369a1", "#047857"
         ];
 
-        const MAX_ROWS = 24;
+        const ICON_PATHS = {
+            'cloud': <path d="M17.5 19c2.5 0 4.5-2 4.5-4.5 0-2.3-1.7-4.1-3.9-4.4C17.6 6.5 14.1 4 10 4 6.4 4 3.4 6.3 2.2 9.5 0.9 10.4 0 11.9 0 13.5 0 16.5 2.5 19 5.5 19h12z"/>,
+            'upload-cloud': <><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M12 12v9"/><path d="m8 16 4-4 4 4"/></>,
+            'folder-plus': <><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/><line x1="12" y1="10" x2="12" y2="16"/><line x1="9" y1="13" x2="15" y2="13"/></>,
+            'printer': <><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></>,
+            'beaker': <><path d="M4.5 3h15"/><path d="M6 3v16a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V3"/><path d="M6 14h12"/></>,
+            'box': <><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></>,
+            'edit-3': <><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></>,
+            'trash-2': <><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></>,
+            'rotate-ccw': <><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></>,
+            'plus': <><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></>,
+            'trash': <><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></>,
+            'x': <><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>,
+            'sheet': <><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></>,
+            'info': <><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="12" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></>,
+            'check': <polyline points="20 6 9 17 4 12"/>,
+            'type': <><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></>,
+            'palette': <><circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.6-.7 1.6-1.6 0-.4-.2-.8-.5-1.1-.3-.3-.4-.7-.4-1.1 0-.9.7-1.6 1.6-1.6H16c3.3 0 6-2.7 6-6 0-4.4-4.5-8-10-8z"/></>,
+            'maximize': <><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></>,
+            'edit-2': <><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></>,
+            'move': <><polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/></>
+        };
+
+        const Icon = ({ name, size = 20, className = "" }) => (
+            <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                width={size} 
+                height={size} 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="2" 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                className={className}
+            >
+                {ICON_PATHS[name] || <circle cx="12" cy="12" r="10" />}
+            </svg>
+        );
+
+        const MAX_ROWS = 32; 
+
+        const INITIAL_DATA = {
+            sample: { 
+                title: "샘플 목록", 
+                printCols: 2,           
+                orientation: "landscape", 
+                fontSize: 12,
+                titleFontSize: 18,
+                fontFamily: "'Noto Sans KR', sans-serif",
+                items: [{ id: Date.now(), cat: "기본", name: "샘플 데이터", origin: "국산", vendor: "비고", checked: false }], 
+                themes: { "기본": "#10b981" }, 
+                order: ["기본"] 
+            },
+            carton: { 
+                title: "카톤박스", 
+                printCols: 2,           
+                orientation: "landscape", 
+                fontSize: 12,
+                titleFontSize: 18,
+                fontFamily: "'Noto Sans KR', sans-serif",
+                items: [
+                    { id: Date.now()+1, cat: "생산라벨", name: "생산라벨 제품", origin: "", vendor: "소비기한", checked: false },
+                    { id: Date.now()+2, cat: "박스라벨", name: "박스라벨 제품", origin: "", vendor: "", checked: false }
+                ], 
+                themes: { "생산라벨": "#ef4444", "박스라벨": "#1e293b" }, 
+                order: ["생산라벨", "박스라벨"] 
+            }
+        };
+
+        const EditableTitle = ({ initialValue, onSave, className = "", style = {} }) => {
+            const [val, setVal] = useState(initialValue);
+            const [isEditing, setIsEditing] = useState(false);
+            useEffect(() => { setVal(initialValue); }, [initialValue]);
+            const handleBlur = () => { 
+                setIsEditing(false);
+                if (val !== initialValue && val.trim()) onSave(val); 
+                else setVal(initialValue);
+            };
+            const handleKeyDown = (e) => { 
+                if (e.key === 'Enter') e.target.blur();
+                if (e.key === 'Escape') { setVal(initialValue); e.target.blur(); }
+            };
+            return (
+                <div className={`relative flex items-center group/edit ${className}`}>
+                    <input 
+                        value={val} 
+                        onChange={e => setVal(e.target.value)}
+                        onFocus={() => setIsEditing(true)}
+                        onBlur={handleBlur}
+                        onKeyDown={handleKeyDown}
+                        style={style}
+                        className={`outline-none bg-transparent transition-all rounded px-1 -ml-1 w-full ${isEditing ? 'bg-white/20 ring-1 ring-white/50' : 'cursor-text hover:bg-white/10'}`} 
+                    />
+                    {!isEditing && <Icon name="edit-3" size={10} className="ml-1 opacity-0 group-hover/edit:opacity-50 text-white shrink-0" />}
+                </div>
+            );
+        };
+
+        const DualColorPicker = ({ label, colorKey, currentColor, onColorSelect }) => (
+            <div className="space-y-3 p-4 bg-slate-50 border border-slate-200 rounded-xl">
+                <div className="flex justify-between items-center">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{label}</label>
+                    <div className="flex items-center gap-2">
+                         <span className="text-[10px] font-mono text-slate-400">{currentColor.toUpperCase()}</span>
+                         <input type="color" value={currentColor} onChange={e => onColorSelect(colorKey, e.target.value)} className="w-6 h-6 p-0 border-0 cursor-pointer bg-transparent rounded overflow-hidden" />
+                    </div>
+                </div>
+                <div className="grid grid-cols-8 gap-1.5">
+                    {COMMON_COLORS.map(c => (
+                        <div key={c} className={`color-dot-sm ${currentColor === c ? 'ring-2 ring-indigo-500 ring-offset-2' : ''}`} style={{ backgroundColor: c }} onClick={() => onColorSelect(colorKey, c)} />
+                    ))}
+                </div>
+            </div>
+        );
 
         const App = () => {
-            const [items, setItems] = useState([]);
-            const [categoryThemes, setCategoryThemes] = useState({});
-            const [categoryOrder, setCategoryOrder] = useState([]);
-            const [printCols, setPrintCols] = useState(3);
-            const [search, setSearch] = useState("");
-            const [editCat, setEditCat] = useState(null);
             const [user, setUser] = useState(null);
-            const [isReady, setIsReady] = useState(false);
-            const fileInputRef = useRef(null);
+            const [loading, setLoading] = useState(true);
+            const [activeTab, setActiveTab] = useState("sample");
+            const [tabData, setTabData] = useState(INITIAL_DATA);
+            const [labelModal, setLabelModal] = useState(null);
+            const [importModal, setImportModal] = useState(false);
+            const [importText, setImportText] = useState("");
+            const [saveStatus, setSaveStatus] = useState("idle");
 
-            // 초기 286개 데이터 세트
-            const fullInitialItems = [
-                { id: "fd1", cat: "기능성/다이어트&장", name: "가르시니아", origin: "-", vendor: "", checked: false },
-                { id: "fd2", cat: "기능성/다이어트&장", name: "그린커피빈추출분말 50%", origin: "-", vendor: "", checked: false },
-                { id: "ft1", cat: "기능성/발효&티", name: "콤부차분말 3072", origin: "-", vendor: "올담", checked: false },
-                { id: "fs1", cat: "기능성/수면&안정", name: "가바(GABA)", origin: "-", vendor: "원유랩", checked: false },
-                { id: "m1", cat: "무기질", name: "탄산수소칼륨", origin: "-", vendor: "", checked: false },
-                { id: "v1", cat: "비타민", name: "중성비타민c", origin: "-", vendor: "", checked: false },
-                // ... (사용자가 [데이터 올리기]를 통해 나머지 데이터를 채울 수 있습니다)
-            ];
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'cellina-cloud-v13';
 
-            // Firebase 초기화 (Mandatory Rule 3 적용)
             useEffect(() => {
-                const initFirebase = async () => {
-                    const { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, getFirestore } = window.Firebase;
+                const initAuth = async () => {
+                    if (!window.FirebaseSDK) return;
+                    const { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, getFirestore } = window.FirebaseSDK;
                     const firebaseConfig = JSON.parse(__firebase_config);
                     const app = initializeApp(firebaseConfig);
                     const auth = getAuth(app);
-
-                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                        await signInWithCustomToken(auth, __initial_auth_token);
-                    } else {
-                        await signInAnonymously(auth);
-                    }
-
-                    onAuthStateChanged(auth, (u) => {
-                        setUser(u);
-                        setIsReady(true);
-                    });
+                    const db = getFirestore(app);
+                    window.db = db;
+                    try {
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) await signInWithCustomToken(auth, __initial_auth_token);
+                        else await signInAnonymously(auth);
+                    } catch (err) { console.error("Auth Error:", err); }
+                    onAuthStateChanged(auth, (u) => setUser(u));
                 };
-                
-                const checkInterval = setInterval(() => {
-                    if (window.Firebase) {
-                        clearInterval(checkInterval);
-                        initFirebase();
-                    }
-                }, 100);
+                initAuth();
             }, []);
 
-            // 실시간 데이터 구독 (Mandatory Rule 1, 2 적용)
+            const saveToCloud = useCallback(async (newData) => {
+                if (!user || !window.db) return;
+                setSaveStatus("saving");
+                const { doc, setDoc } = window.FirebaseSDK;
+                const docRef = doc(window.db, 'artifacts', appId, 'public', 'data', 'inventory_v13', 'current_state');
+                try {
+                    await setDoc(docRef, { tabData: newData, updatedAt: Date.now(), lastUser: user.uid });
+                    setSaveStatus("saved");
+                    setTimeout(() => setSaveStatus("idle"), 2000);
+                } catch (err) { console.error("Save Error:", err); setSaveStatus("idle"); }
+            }, [user, appId]);
+
             useEffect(() => {
-                if (!user) return;
-                const { getFirestore, collection, onSnapshot } = window.Firebase;
-                const db = getFirestore();
-                const appId = typeof __app_id !== 'undefined' ? __app_id : 'cellina-inventory';
+                if (!user || !window.db) return;
+                const { doc, onSnapshot } = window.FirebaseSDK;
+                const docRef = doc(window.db, 'artifacts', appId, 'public', 'data', 'inventory_v13', 'current_state');
+                const unsubscribe = onSnapshot(docRef, (snapshot) => {
+                    if (snapshot.exists()) {
+                        const data = snapshot.data().tabData;
+                        const migrated = Object.keys(data).reduce((acc, key) => {
+                            acc[key] = { 
+                                fontSize: 12, titleFontSize: 18, 
+                                orientation: "landscape", printCols: 2, 
+                                fontFamily: "'Noto Sans KR', sans-serif", 
+                                ...data[key] 
+                            };
+                            return acc;
+                        }, {});
+                        setTabData(migrated);
+                    } else { saveToCloud(INITIAL_DATA); }
+                    setLoading(false);
+                }, (err) => { console.error("Sync Error:", err); setLoading(false); });
+                return () => unsubscribe();
+            }, [user, appId, saveToCloud]);
 
-                // Rule 1: /artifacts/{appId}/public/data/{collectionName}
-                const unsub = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'master'), (snap) => {
-                    const masterDoc = snap.docs.map(d => d.data()).find(d => d.id === 'state');
-                    if (masterDoc) {
-                        setItems(masterDoc.items || []);
-                        setCategoryThemes(masterDoc.themes || {});
-                        setCategoryOrder(masterDoc.order || []);
-                    } else {
-                        // 최초 세팅: 겹치지 않는 색상 자동 배정
-                        const initialOrder = [...new Set(fullInitialItems.map(i => i.cat))];
-                        const initialThemes = {};
-                        initialOrder.forEach((c, i) => initialThemes[c] = PRESET_COLORS[i % PRESET_COLORS.length]);
-                        saveState(fullInitialItems, initialThemes, initialOrder);
-                    }
-                }, (err) => console.error("Cloud Error:", err));
+            const current = tabData[activeTab] || INITIAL_DATA[activeTab];
 
-                return () => unsub();
-            }, [user]);
+            const updateCurrentData = (updates) => {
+                const nextData = { ...tabData, [activeTab]: { ...current, ...updates } };
+                setTabData(nextData);
+                saveToCloud(nextData); 
+            };
 
-            const saveState = async (newItems, newThemes, newOrder) => {
-                if (!user) return;
-                const { getFirestore, doc, setDoc } = window.Firebase;
-                const db = getFirestore();
-                const appId = typeof __app_id !== 'undefined' ? __app_id : 'cellina-inventory';
-                
-                await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'master', 'state'), {
-                    id: 'state',
-                    items: newItems || items,
-                    themes: newThemes || categoryThemes,
-                    order: newOrder || categoryOrder,
-                    updatedAt: Date.now()
+            const toggleCheck = (id) => {
+                const nextItems = current.items.map(i => i.id === id ? { ...i, checked: !i.checked } : i);
+                updateCurrentData({ items: nextItems });
+            };
+
+            const editItem = (id, f, v) => {
+                const nextItems = current.items.map(i => i.id === id ? { ...i, [f]: v } : i);
+                updateCurrentData({ items: nextItems });
+            };
+
+            const deleteItem = (id) => {
+                const nextItems = current.items.filter(i => i.id !== id);
+                updateCurrentData({ items: nextItems });
+            };
+
+            const deleteChecked = () => {
+                const nextItems = current.items.filter(i => !i.checked);
+                updateCurrentData({ items: nextItems });
+            };
+
+            const uncheckAll = () => {
+                const nextItems = current.items.map(i => ({...i, checked: false}));
+                updateCurrentData({ items: nextItems });
+            };
+
+            const renameCategory = (oldName, newName) => {
+                if (!newName || oldName === newName) return;
+                const nextItems = current.items.map(i => i.cat === oldName ? { ...i, cat: newName } : i);
+                const nextOrder = current.order.map(c => c === oldName ? newName : c);
+                const nextThemes = { ...current.themes };
+                if (nextThemes[oldName]) {
+                    nextThemes[newName] = nextThemes[oldName];
+                    delete nextThemes[oldName];
+                }
+                updateCurrentData({ items: nextItems, order: nextOrder, themes: nextThemes });
+            };
+
+            const setCategoryColor = (cat, color) => {
+                const nextThemes = { ...current.themes, [cat]: color };
+                updateCurrentData({ themes: nextThemes });
+            };
+
+            const addCategory = () => {
+                const newCatName = `새 분류 ${current.order.length + 1}`;
+                const nextOrder = [...current.order, newCatName];
+                const nextThemes = { ...current.themes, [newCatName]: "#6366f1" };
+                const nextItems = [{ id: Date.now(), cat: newCatName, name: "제품명", origin: "", vendor: "", checked: false }, ...current.items];
+                updateCurrentData({ items: nextItems, order: nextOrder, themes: nextThemes });
+            };
+
+            const deleteCategory = (catName) => {
+                if (!confirm(`'${catName}' 분류를 삭제할까요?`)) return;
+                const nextOrder = current.order.filter(c => c !== catName);
+                const nextItems = current.items.filter(i => i.cat !== catName);
+                const nextThemes = { ...current.themes };
+                delete nextThemes[catName];
+                updateCurrentData({ items: nextItems, order: nextOrder, themes: nextThemes });
+            };
+
+            const addItemToCat = (cat) => {
+                const nextItems = [{ id: Date.now(), cat: cat, name: "", origin: "", vendor: "", checked: false }, ...current.items];
+                updateCurrentData({ items: nextItems });
+            };
+
+            const openLabelMaker = (item) => {
+                const isSingle = item.cat === '박스라벨';
+                setLabelModal({
+                    mainText: item.name || "라벨명",
+                    footerText: isSingle ? "" : (item.vendor || "소비기한"),
+                    bgTop: "#EF4444", bgBottom: "#FFFFFF", colorTop: "#FFFFFF", colorBottom: "#000000",
+                    fontFamily: "'Noto Sans KR', sans-serif",
+                    mainSize: 140, footerSize: 90,
+                    isSingleZone: isSingle
                 });
             };
 
-            const handleFileUpload = (event) => {
-                const file = event.target.files[0];
-                if (!file) return;
-                const reader = new FileReader();
-                reader.onload = async (e) => {
-                    const lines = e.target.result.split('\n');
-                    const newItems = [];
-                    const startIdx = lines[0].includes('분류') ? 1 : 0;
-                    for (let i = startIdx; i < lines.length; i++) {
-                        const line = lines[i].trim();
-                        if (!line) continue;
-                        const [cat, name, origin, vendor] = line.split(',');
-                        if (cat && name) {
-                            newItems.push({
-                                id: `up-${Date.now()}-${i}`,
-                                cat: cat.trim(),
-                                name: name.trim(),
-                                origin: (origin || "-").trim(),
-                                vendor: (vendor || "").trim(),
-                                checked: false
-                            });
-                        }
-                    }
-                    if (newItems.length > 0 && confirm(`${newItems.length}개의 품목을 클라우드에 업데이트하시겠습니까?`)) {
-                        const newOrder = [...new Set(newItems.map(i => i.cat))];
-                        const newThemes = {};
-                        newOrder.forEach((c, i) => newThemes[c] = PRESET_COLORS[i % PRESET_COLORS.length]);
-                        await saveState(newItems, newThemes, newOrder);
-                    }
-                };
-                reader.readAsText(file, "UTF-8");
-            };
-
-            const downloadBackup = () => {
-                let csv = "분류,제품명,원산지,공급사\n";
-                items.forEach(i => csv += `${i.cat},${i.name},${i.origin},${i.vendor}\n`);
-                const blob = new Blob(["\ufeff" + csv], { type: 'text/csv;charset=utf-8;' });
-                const link = document.createElement("a");
-                link.href = URL.createObjectURL(blob);
-                link.setAttribute("download", `Cellina_Cloud_Backup.csv`);
-                link.click();
-            };
-
-            const toggleCheck = (id) => saveState(items.map(i => i.id === id ? { ...i, checked: !i.checked } : i));
-            const editItem = (id, f, v) => saveState(items.map(i => i.id === id ? { ...i, [f]: v } : i));
-            
-            const renameCategory = (old, n) => {
-                if (!n || old === n) return;
-                const nextItems = items.map(i => i.cat === old ? { ...i, cat: n } : i);
-                const nextOrder = categoryOrder.map(c => c === old ? n : c);
-                const nextThemes = { ...categoryThemes };
-                nextThemes[n] = nextThemes[old];
-                delete nextThemes[old];
-                saveState(nextItems, nextThemes, nextOrder);
-            };
-
-            const onDrop = (dragged, target) => {
-                if (dragged === target) return;
-                const next = [...categoryOrder];
-                const from = next.indexOf(dragged);
-                const to = next.indexOf(target);
-                next.splice(from, 1);
-                next.splice(to, 0, dragged);
-                saveState(null, null, next);
+            const handleImport = () => {
+                if (!importText.trim()) return;
+                const lines = importText.trim().split('\n');
+                const nextItems = [...current.items];
+                const nextOrder = [...current.order];
+                const nextThemes = { ...current.themes };
+                lines.forEach((line, idx) => {
+                    const cols = line.split('\t');
+                    if (cols.length < 1) return;
+                    const cat = cols[0] ? cols[0].trim() : "기타";
+                    const name = cols[1] ? cols[1].trim() : "";
+                    const origin = cols[2] ? cols[2].trim() : "";
+                    const vendor = cols[3] ? cols[3].trim() : "";
+                    if (!nextOrder.includes(cat)) { nextOrder.push(cat); nextThemes[cat] = "#6366f1"; }
+                    nextItems.unshift({ id: Date.now() + idx, cat: cat, name: name, origin: origin, vendor: vendor, checked: false });
+                });
+                const nextData = { ...tabData, [activeTab]: { ...current, items: nextItems, order: nextOrder, themes: nextThemes } };
+                setTabData(nextData);
+                saveToCloud(nextData);
+                setImportModal(false);
+                setImportText("");
             };
 
             const splitBlocks = useMemo(() => {
+                if (!current) return [];
                 let result = [];
-                categoryOrder.forEach(cat => {
-                    const catItems = items.filter(i => i.cat === cat).sort((a,b) => a.id.localeCompare(b.id));
-                    if (catItems.length === 0) return;
+                current.order.forEach(cat => {
+                    const catItems = current.items.filter(i => i.cat === cat);
+                    if (catItems.length === 0) {
+                        result.push({ id: `${cat}-empty`, originalCat: cat, title: cat, items: [], theme: current.themes[cat] });
+                        return;
+                    }
                     for (let i = 0; i < catItems.length; i += MAX_ROWS) {
-                        result.push({ id: `${cat}-${i}`, originalCat: cat, title: cat, items: catItems.slice(i, i + MAX_ROWS), theme: categoryThemes[cat] });
+                        result.push({ id: `${cat}-${i}`, originalCat: cat, title: cat, items: catItems.slice(i, i + MAX_ROWS), theme: current.themes[cat] });
                     }
                 });
                 return result;
-            }, [items, categoryThemes, categoryOrder]);
+            }, [current]);
 
-            if (!isReady) return (
-                <div className="flex flex-col h-screen items-center justify-center bg-white">
-                    <div className="loader mb-4"></div>
-                    <p className="font-bold text-slate-500">실시간 클라우드 연결 중...</p>
-                </div>
-            );
+            const getColConfig = (catName) => {
+                if (activeTab === 'carton') {
+                    if (catName === '생산라벨') return { headers: ['라벨명', '소비기한'], keys: ['name', 'vendor'], widths: ['auto', 'w-40'] };
+                    if (catName === '박스라벨') return { headers: ['라벨명'], keys: ['name'], widths: ['auto'] };
+                }
+                return { headers: ['품목명', '원산지', '공급사'], keys: ['name', 'origin', 'vendor'], widths: ['auto', 'w-24', 'w-32'] };
+            };
+
+            if (loading) return <div className="loading-overlay"><div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div><p className="text-slate-400 font-bold text-sm">로딩 중...</p></div>;
 
             return (
-                <div className="min-h-screen" onClick={() => setEditCat(null)}>
-                    <header className="no-print bg-slate-900 text-white p-4 sticky top-0 z-50 flex justify-between items-center shadow-xl">
-                        <div className="flex items-center gap-4">
-                            <div className="bg-indigo-600 p-2 rounded-xl shadow-lg"><Icon name="cloud" /></div>
-                            <div>
-                                <h1 className="text-xl font-black tracking-tighter uppercase leading-none">Cellina Cloud Sync</h1>
-                                <p className="text-[10px] text-green-400 font-bold tracking-widest mt-1 uppercase italic underline">데이터가 구글 서버에 자동 저장됩니다</p>
+                <div className="min-h-screen flex flex-col">
+                    <header className="no-print bg-slate-900 text-white shadow-2xl z-50 sticky top-0">
+                        <div className="max-w-[1600px] mx-auto p-4 flex flex-wrap justify-between items-center gap-4">
+                            <div className="flex items-center gap-4">
+                                <div className="bg-indigo-600 p-2.5 rounded-xl"><Icon name="cloud" size={24} /></div>
+                                <div>
+                                    <h1 className="text-xl font-black tracking-tighter uppercase leading-none">Cellina Cloud</h1>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <div className={`w-2 h-2 rounded-full ${saveStatus === 'saving' ? 'bg-yellow-400 animate-ping' : 'bg-green-500'}`}></div>
+                                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{saveStatus === 'saving' ? '저장 중...' : '설정 저장됨'}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-3">
+                                {!labelModal ? (
+                                    <React.Fragment>
+                                        <button onClick={() => setImportModal(true)} className="bg-slate-800 hover:bg-slate-700 px-4 py-2 rounded-lg font-bold text-xs flex items-center gap-2 transition-all"><Icon name="upload-cloud" size={14} /> 데이터 가져오기</button>
+                                        <button onClick={addCategory} className="bg-slate-800 hover:bg-slate-700 px-4 py-2 rounded-lg font-bold text-xs flex items-center gap-2 transition-all"><Icon name="folder-plus" size={14} /> 분류 추가</button>
+                                        <div className="h-6 w-px bg-slate-700 mx-1"></div>
+                                        <div className="flex bg-slate-800 p-1 rounded-lg">
+                                            <button onClick={() => updateCurrentData({orientation: 'portrait'})} className={`px-3 py-1.5 rounded-md text-[10px] font-black transition-all ${current.orientation === 'portrait' ? 'bg-indigo-600 text-white' : 'text-slate-500'}`}>세로</button>
+                                            <button onClick={() => updateCurrentData({orientation: 'landscape'})} className={`px-3 py-1.5 rounded-md text-[10px] font-black transition-all ${current.orientation === 'landscape' ? 'bg-indigo-600 text-white' : 'text-slate-500'}`}>가로</button>
+                                        </div>
+                                        <button onClick={() => window.print()} className="bg-white text-slate-900 hover:bg-indigo-50 px-5 py-2 rounded-lg font-black flex items-center gap-2 shadow-lg text-xs transition-all"><Icon name="printer" size={14} /> 인쇄</button>
+                                    </React.Fragment>
+                                ) : (
+                                    <React.Fragment>
+                                        <button onClick={() => window.print()} className="bg-indigo-600 text-white hover:bg-indigo-700 px-8 py-2 rounded-lg font-black flex items-center gap-2 shadow-lg text-sm transition-all"><Icon name="printer" size={16} /> 라벨 인쇄</button>
+                                        <button onClick={() => setLabelModal(null)} className="bg-slate-700 text-white px-4 py-2 rounded-lg font-bold text-sm">목록으로</button>
+                                    </React.Fragment>
+                                )}
                             </div>
                         </div>
-                        <div className="flex items-center gap-4">
-                            <div className="flex gap-2 mr-4 border-r border-slate-700 pr-4">
-                                <button onClick={() => fileInputRef.current.click()} className="bg-emerald-600 hover:bg-emerald-700 px-3 py-2 rounded-lg font-bold text-xs flex items-center gap-2 shadow-md transition-all">
-                                    <Icon name="upload" size={14} /> 데이터 올리기
+                        <div className="px-6 flex gap-2 overflow-x-auto no-scrollbar">
+                            {Object.keys(tabData).map(key => (
+                                <button key={key} onClick={() => {setActiveTab(key); setLabelModal(null);}} className={`tab-button min-w-[120px] ${activeTab === key ? 'tab-active' : 'tab-inactive'}`}>
+                                    <Icon name={key === 'sample' ? 'beaker' : 'box'} size={14} />
+                                    <span className="font-black text-inherit select-none">{tabData[key].title}</span>
                                 </button>
-                                <input type="file" ref={fileInputRef} className="hidden" accept=".csv" onChange={handleFileUpload} />
-                                <button onClick={downloadBackup} className="bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded-lg font-bold text-xs flex items-center gap-2 shadow-md transition-all">
-                                    <Icon name="download" size={14} /> 백업(CSV)
-                                </button>
-                            </div>
-                            <div className="flex bg-slate-800 p-1 rounded-lg border border-slate-700">
-                                <button onClick={() => setPrintCols(2)} className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${printCols === 2 ? 'bg-indigo-600 text-white' : 'text-slate-500'}`}>2단</button>
-                                <button onClick={() => setPrintCols(3)} className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${printCols === 3 ? 'bg-indigo-600 text-white' : 'text-slate-500'}`}>3단</button>
-                            </div>
-                            <button onClick={() => window.print()} className="bg-indigo-600 hover:bg-indigo-700 px-6 py-2 rounded-lg font-black flex items-center gap-2 shadow-lg text-sm active:scale-95 transition-all"><Icon name="printer" size={16} /> 대장 인쇄</button>
+                            ))}
                         </div>
                     </header>
 
-                    <div id="paper" style={{ width: '287mm' }}>
-                        <div className={`grid gap-x-6 gap-y-10 items-start ${printCols === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
-                            {splitBlocks.map((block) => (
-                                <div key={block.id} className="box-container break-inside-avoid border-2 border-slate-900 rounded-xl overflow-hidden shadow-sm bg-white relative hover:border-indigo-400 transition-colors" onClick={(e) => e.stopPropagation()}>
-                                    <div 
-                                        style={{ backgroundColor: block.theme || '#334155' }} 
-                                        className="text-white flex items-center justify-between px-3 py-2 draggable-handle no-print"
-                                        draggable 
-                                        onDragStart={(e) => e.dataTransfer.setData("cat", block.originalCat)}
-                                        onDragOver={(e) => e.preventDefault()}
-                                        onDrop={(e) => onDrop(e.dataTransfer.getData("cat"), block.originalCat)}
-                                    >
-                                        <input value={block.title} onChange={e => renameCategory(block.originalCat, e.target.value)} className="bg-white/10 hover:bg-white/20 focus:bg-white focus:text-slate-900 rounded px-2 py-1 text-xl font-black outline-none w-full shadow-inner" />
-                                        <div className="flex items-center gap-1.5 ml-2">
-                                            <button onClick={() => setEditCat(editCat === block.originalCat ? null : block.originalCat)} className={`p-1.5 rounded-full transition-all bg-white/20 hover:bg-white hover:text-slate-900 ${editCat === block.originalCat ? 'bg-white text-slate-900 scale-110 shadow-lg' : ''}`}><Icon name="palette" size={16}/></button>
+                    <main className="flex-1 p-4 md:p-8 overflow-y-auto">
+                        {!labelModal ? (
+                            <div className="max-w-[1600px] mx-auto">
+                                <div className="no-print mb-6 flex flex-wrap justify-between items-center bg-white p-4 rounded-xl border border-slate-200 shadow-sm gap-4">
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-sm font-bold text-slate-500 ml-2">선택: {current.items.filter(i => i.checked).length}개</span>
+                                        {current.items.some(i => i.checked) && (
+                                            <div className="flex gap-2">
+                                                <button onClick={deleteChecked} className="bg-red-50 text-red-600 hover:bg-red-100 px-3 py-1.5 rounded-lg text-xs font-black flex items-center gap-1.5"><Icon name="trash-2" size={14} /> 삭제</button>
+                                                <button onClick={uncheckAll} className="bg-slate-100 text-slate-600 hover:bg-slate-200 px-3 py-1.5 rounded-lg text-xs font-black flex items-center gap-1.5"><Icon name="rotate-ccw" size={14} /> 해제</button>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-4 bg-slate-50 p-2 rounded-xl border border-slate-100">
+                                        <div className="flex items-center gap-2 border-r border-slate-200 pr-4">
+                                            <span className="text-[10px] font-black text-slate-400 uppercase">분류제목</span>
+                                            <input type="number" value={current.titleFontSize} onChange={e => updateCurrentData({titleFontSize: parseInt(e.target.value)})} className="w-12 bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-bold" />
+                                            <span className="text-[10px] text-slate-400">px</span>
+                                        </div>
+                                        <div className="flex items-center gap-2 border-r border-slate-200 pr-4">
+                                            <span className="text-[10px] font-black text-slate-400 uppercase">본문</span>
+                                            <input type="number" value={current.fontSize} onChange={e => updateCurrentData({fontSize: parseInt(e.target.value)})} className="w-12 bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-bold" />
+                                            <span className="text-[10px] text-slate-400">px</span>
+                                        </div>
+                                        <div className="flex items-center gap-2 border-r border-slate-200 pr-4">
+                                            <span className="text-[10px] font-black text-slate-400 uppercase">글꼴</span>
+                                            <select value={current.fontFamily} onChange={e => updateCurrentData({fontFamily: e.target.value})} className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-bold">
+                                                <option value="'Noto Sans KR', sans-serif">본고딕</option>
+                                                <option value="'Nanum Gothic', sans-serif">나눔고딕</option>
+                                                <option value="'Nanum Myeongjo', serif">나눔명조</option>
+                                                <option value="'Black Han Sans', sans-serif">검은고딕</option>
+                                            </select>
+                                        </div>
+                                        <div className="flex gap-1 ml-2">
+                                            {[1, 2, 3].map(n => (
+                                                <button key={n} onClick={() => updateCurrentData({printCols: n})} className={`px-3 py-1 rounded-lg text-[10px] font-black transition-all border ${current.printCols === n ? 'bg-slate-900 text-white border-slate-900 shadow-md' : 'bg-white text-slate-500 border-slate-200'}`}>{n}단</button>
+                                            ))}
                                         </div>
                                     </div>
-
-                                    {editCat === block.originalCat && (
-                                        <div className="no-print p-2.5 bg-white border-b flex flex-wrap gap-2 shadow-inner animate-in slide-in-from-top duration-200">
-                                            {PRESET_COLORS.map(c => (
-                                                <div key={c} className="color-dot shadow-sm" style={{ backgroundColor: c }} onClick={() => saveState(null, { ...categoryThemes, [block.originalCat]: c })} />
-                                            ))}
-                                        </div>
-                                    )}
-
-                                    <div style={{ backgroundColor: block.theme || '#334155' }} className="hidden print:block text-white text-[22px] font-black px-5 py-2.5 border-b-2 border-slate-900 leading-none">{block.title}</div>
-
-                                    <table className="w-full text-[12.5px] border-collapse">
-                                        <thead className="bg-slate-50 border-b-2 border-slate-400 text-slate-900 font-bold">
-                                            <tr>
-                                                <th className="w-9 border-r border-slate-300 py-1 font-black text-center text-[10px]">V</th>
-                                                <th className="text-left px-3 border-r border-slate-300">제품명</th>
-                                                <th className="w-16 border-r border-slate-300 text-center text-[10px]">원산지</th>
-                                                <th className="text-left px-3">공급사</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {block.items.map(item => (
-                                                <tr key={item.id} className="border-b border-slate-200 last:border-0 group">
-                                                    <td className="border-r border-slate-200 text-center py-1.5 relative">
-                                                        <button onClick={() => toggleCheck(item.id)} className={`w-5 h-5 border-2 rounded mx-auto flex items-center justify-center transition-all ${item.checked ? 'bg-indigo-600 border-indigo-600 shadow-sm' : 'bg-white border-slate-400'}`}>
-                                                            {item.checked && <Icon name="check" size={14} className="text-white" />}
-                                                        </button>
-                                                    </td>
-                                                    <td className="px-3 border-r border-slate-200 font-bold text-black text-[13px] leading-tight"><input value={item.name} onChange={e => editItem(item.id, 'name', e.target.value)} /></td>
-                                                    <td className="px-1 border-r border-slate-200 text-center text-slate-800 font-black text-[10.5px]"><input value={item.origin} className="text-center" onChange={e => editItem(item.id, 'origin', e.target.value)} /></td>
-                                                    <td className="px-3 text-slate-600 font-bold text-[11px] flex justify-between items-center"><input value={item.vendor} onChange={e => editItem(item.id, 'vendor', e.target.value)} /><button onClick={() => saveState(items.filter(i => i.id !== item.id))} className="no-print text-red-400 opacity-0 group-hover:opacity-100 hover:text-red-600 transition-all"><Icon name="trash-2" size={13}/></button></td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
                                 </div>
-                            ))}
+
+                                {/* 관리 리스트 출력부 */}
+                                <div id="paper" className={activeTab === 'carton' ? 'carton-print-no-border' : ''} style={{ width: current.orientation === 'portrait' ? '210mm' : '297mm', fontFamily: current.fontFamily }}>
+                                    <div className={`grid gap-x-6 gap-y-10 items-start ${current.printCols === 1 ? 'grid-cols-1' : (current.printCols === 2 ? 'grid-cols-2' : 'grid-cols-3')}`}>
+                                        {splitBlocks.map((block) => {
+                                            const config = getColConfig(block.originalCat);
+                                            return (
+                                                <div key={block.id} className={`group/box border-2 border-slate-900 rounded-xl overflow-hidden bg-white shadow-sm hover:shadow-md transition-shadow relative break-inside-avoid`}>
+                                                    <div style={{ backgroundColor: block.theme || '#1e293b' }} className="flex items-center justify-between px-3 py-2 no-print">
+                                                        <div className="flex items-center gap-2 flex-1 overflow-hidden">
+                                                            <EditableTitle 
+                                                                initialValue={block.title} 
+                                                                onSave={(val) => renameCategory(block.originalCat, val)} 
+                                                                style={{ fontSize: `${current.titleFontSize}px`, fontWeight: '900', color: 'white' }}
+                                                                className="flex-1"
+                                                            />
+                                                            <input type="color" value={block.theme || '#1e293b'} onChange={(e) => setCategoryColor(block.originalCat, e.target.value)} className="w-5 h-5 bg-transparent border-0 cursor-pointer p-0 overflow-hidden rounded shrink-0" />
+                                                        </div>
+                                                        <div className="flex items-center gap-1 opacity-0 group-hover/box:opacity-100 transition-opacity ml-2 shrink-0">
+                                                            <button onClick={() => addItemToCat(block.originalCat)} className="p-1.5 hover:bg-white/20 rounded-md text-white"><Icon name="plus" size={14}/></button>
+                                                            <button onClick={() => deleteCategory(block.originalCat)} className="p-1.5 hover:bg-red-500 rounded-md text-white"><Icon name="trash" size={14}/></button>
+                                                        </div>
+                                                    </div>
+                                                    {/* 인쇄용 제목 */}
+                                                    <div style={{ backgroundColor: block.theme || '#1e293b', fontSize: `${current.titleFontSize}px` }} className={`hidden print:block text-white font-black px-4 py-2 border-b-2 border-slate-900 text-center leading-tight`}>
+                                                        {block.title}
+                                                    </div>
+                                                    <table className={`w-full border-collapse table-fixed`} style={{ fontSize: `${current.fontSize}px` }}>
+                                                        <thead className={`bg-slate-50 border-b-2 border-slate-900 text-slate-900 font-bold`}>
+                                                            <tr>
+                                                                <th className={`w-8 border-r border-slate-900 py-1.5 text-center font-black`}>V</th>
+                                                                {config.headers.map((h, i) => (
+                                                                    <th key={h} className={`${config.widths[i]} px-3 border-r border-slate-900 last:border-r-0 font-black text-left`}>{h}</th>
+                                                                ))}
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className={`divide-y divide-slate-200`}>
+                                                            {block.items.map(item => (
+                                                                <tr key={item.id} className={`hover:bg-indigo-50/30 transition-colors group/row ${item.checked ? 'bg-indigo-50/50' : ''}`}>
+                                                                    <td className={`border-r border-slate-200 text-center py-2`}><input type="checkbox" checked={item.checked} onChange={() => toggleCheck(item.id)} className="custom-checkbox mx-auto" /></td>
+                                                                    {config.keys.map((key, i) => (
+                                                                        <td key={key} className={`px-3 border-r border-slate-200 last:border-r-0 ${i === 0 ? 'font-bold text-slate-900' : 'text-slate-600'}`}>
+                                                                            <div className="flex items-center gap-2">
+                                                                                <input value={item[key] || ""} onChange={e => editItem(item.id, key, e.target.value)} className="w-full bg-transparent focus:bg-white py-1 rounded" style={{ fontSize: 'inherit' }} />
+                                                                                {key === 'name' && (activeTab === 'carton') && (
+                                                                                    <button onClick={() => openLabelMaker(item)} className="no-print text-indigo-500 hover:scale-125 transition-transform p-1 flex-shrink-0"><Icon name="printer" size={14} /></button>
+                                                                                )}
+                                                                                {i === config.keys.length - 1 && (
+                                                                                    <button onClick={() => deleteItem(item.id)} className="no-print text-slate-300 hover:text-red-500 opacity-0 group-hover/row:opacity-100 transition-opacity flex-shrink-0"><Icon name="x" size={14}/></button>
+                                                                                )}
+                                                                            </div>
+                                                                        </td>
+                                                                    ))}
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            /* 라벨 디자인 화면 (내부 테두리 제거됨) */
+                            <div className="flex flex-col items-center pb-20 animate-in fade-in zoom-in-95 duration-300">
+                                <div className="no-print bg-white p-8 rounded-3xl shadow-2xl border border-slate-200 mb-10 w-full max-w-6xl">
+                                    <div className="grid grid-cols-1 lg:grid-cols-4 gap-10">
+                                        <div className="lg:col-span-1 space-y-6">
+                                            <div className="border-b border-slate-100 pb-2"><h4 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><Icon name="edit-2" size={14}/> 콘텐츠 편집</h4></div>
+                                            <div className="space-y-4">
+                                                <div className="flex bg-slate-100 p-1 rounded-xl">
+                                                    <button onClick={() => setLabelModal({...labelModal, isSingleZone: false})} className={`flex-1 py-2 text-[11px] font-black rounded-lg transition-all ${!labelModal.isSingleZone ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500'}`}>일반</button>
+                                                    <button onClick={() => setLabelModal({...labelModal, isSingleZone: true})} className={`flex-1 py-2 text-[11px] font-black rounded-lg transition-all ${labelModal.isSingleZone ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500'}`}>단일</button>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-bold text-slate-400">라벨명</label>
+                                                    <textarea value={labelModal.mainText} onChange={e => setLabelModal({...labelModal, mainText: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold text-lg h-32 resize-none outline-none focus:ring-2 focus:ring-indigo-200 transition-all" />
+                                                </div>
+                                                {!labelModal.isSingleZone && <div className="space-y-2"><label className="text-[10px] font-bold text-slate-400">하단 문구</label><input value={labelModal.footerText} onChange={e => setLabelModal({...labelModal, footerText: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold outline-none" /></div>}
+                                            </div>
+                                        </div>
+                                        <div className="lg:col-span-2 space-y-6">
+                                            <div className="border-b border-slate-100 pb-2"><h4 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><Icon name="palette" size={14}/> 스타일</h4></div>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                <DualColorPicker label="상단 배경" colorKey="bgTop" currentColor={labelModal.bgTop} onColorSelect={(k, v) => setLabelModal({...labelModal, [k]: v})} />
+                                                <DualColorPicker label="상단 글자" colorKey="colorTop" currentColor={labelModal.colorTop} onColorSelect={(k, v) => setLabelModal({...labelModal, [k]: v})} />
+                                                {!labelModal.isSingleZone && <><DualColorPicker label="하단 배경" colorKey="bgBottom" currentColor={labelModal.bgBottom} onColorSelect={(k, v) => setLabelModal({...labelModal, [k]: v})} /><DualColorPicker label="하단 글자" colorKey="colorBottom" currentColor={labelModal.colorBottom} onColorSelect={(k, v) => setLabelModal({...labelModal, [k]: v})} /></>}
+                                            </div>
+                                            <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl">
+                                                <label className="text-[10px] font-bold text-slate-400 mb-2 block">글꼴</label>
+                                                <select value={labelModal.fontFamily} onChange={e => setLabelModal({...labelModal, fontFamily: e.target.value})} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 font-bold text-sm outline-none shadow-sm focus:ring-2 focus:ring-indigo-200">
+                                                    <option value="'Noto Sans KR', sans-serif">본고딕 (Noto Sans)</option>
+                                                    <option value="'Nanum Gothic', sans-serif">나눔고딕</option>
+                                                    <option value="'Nanum Myeongjo', serif">나눔명조</option>
+                                                    <option value="'Black Han Sans', sans-serif">검은고딕 (굵게)</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div className="lg:col-span-1 space-y-6">
+                                            <div className="border-b border-slate-100 pb-2"><h4 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><Icon name="maximize" size={14}/> 크기</h4></div>
+                                            <div className="space-y-12 py-4">
+                                                <div className="space-y-3"><div className="flex justify-between text-[11px] font-black text-slate-600"><span>제품명</span><span>{labelModal.mainSize}px</span></div><input type="range" min="40" max="600" value={labelModal.mainSize} onChange={e => setLabelModal({...labelModal, mainSize: parseInt(e.target.value)})} className="w-full accent-indigo-600 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer" /></div>
+                                                {!labelModal.isSingleZone && <div className="space-y-3"><div className="flex justify-between text-[11px] font-black text-slate-600"><span>하단</span><span>{labelModal.footerSize}px</span></div><input type="range" min="20" max="400" value={labelModal.footerSize} onChange={e => setLabelModal({...labelModal, footerSize: parseInt(e.target.value)})} className="w-full accent-indigo-600 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer" /></div>}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {/* 내부 프린트 디자인 화면: 테두리(border) 제거됨 */}
+                                <div className="label-print-area bg-white shadow-2xl overflow-hidden" style={{ width: '280mm', height: '190mm', fontFamily: labelModal.fontFamily }}>
+                                    <div style={{ backgroundColor: labelModal.bgTop, color: labelModal.colorTop, height: labelModal.isSingleZone ? '100%' : '72%' }} className="flex flex-col justify-center items-center p-12 text-center transition-all duration-300">
+                                        <div style={{ fontSize: `${labelModal.mainSize}px`, fontWeight: '900', letterSpacing: '-0.04em', lineHeight: '1.1', whiteSpace: 'pre-wrap' }}>{labelModal.mainText}</div>
+                                    </div>
+                                    {!labelModal.isSingleZone && <div style={{ backgroundColor: labelModal.bgBottom, color: labelModal.colorBottom, height: '28%' }} className="flex justify-center items-center transition-all duration-300"><div style={{ fontSize: `${labelModal.footerSize}px`, fontWeight: '900', letterSpacing: '-0.02em' }}>{labelModal.footerText}</div></div>}
+                                </div>
+                            </div>
+                        )}
+                    </main>
+
+                    {importModal && (
+                        <div className="fixed inset-0 z-[100] bg-slate-900/70 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
+                            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden">
+                                <div className="p-6 bg-slate-50 border-b flex justify-between items-center">
+                                    <div className="flex items-center gap-3"><div className="bg-green-100 text-green-600 p-2 rounded-lg"><Icon name="sheet" /></div><div><h2 className="text-xl font-black text-slate-900 leading-tight">스마트 데이터 가져오기</h2><p className="text-xs text-slate-500 font-bold mt-0.5">{current.title} 탭에 추가됩니다.</p></div></div>
+                                    <button onClick={() => setImportModal(false)} className="p-2 hover:bg-slate-200 rounded-full text-slate-400"><Icon name="x" /></button>
+                                </div>
+                                <div className="p-8">
+                                    <div className="bg-indigo-50 border-2 border-dashed border-indigo-200 rounded-2xl p-5 mb-6">
+                                        <h4 className="text-[11px] font-black text-indigo-600 uppercase mb-2 flex items-center gap-1.5"><Icon name="info" size={12}/> {activeTab === 'carton' ? '카톤박스용 복사 순서' : '일반 복사 순서'}</h4>
+                                        <p className="text-xs text-indigo-900/70 leading-relaxed font-bold italic">
+                                            {activeTab === 'carton' 
+                                                ? '[ 분류 ] [ 라벨명 ] [ 원산지(비움) ] [ 소비기한 ]' 
+                                                : '[ 분류 ] [ 제품명 ] [ 원산지 ] [ 공급사 ]'
+                                            }<br/>
+                                            <span className="text-indigo-600 font-black">시트의 열을 드래그하여 복사 후 붙여넣으세요.</span>
+                                        </p>
+                                    </div>
+                                    <textarea value={importText} onChange={e => setImportText(e.target.value)} className="w-full h-72 bg-slate-50 border-2 border-slate-200 rounded-2xl p-5 text-sm font-mono focus:border-indigo-500 outline-none transition-all" placeholder="데이터를 붙여넣으세요..." />
+                                </div>
+                                <div className="p-6 bg-slate-50 flex gap-3">
+                                    <button onClick={handleImport} className="flex-[2] bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4 rounded-2xl shadow-lg flex items-center justify-center gap-2 transition-all"><Icon name="check" size={18} /> {importText.split('\n').filter(l => l.trim()).length}개 항목 분류 추가</button>
+                                    <button onClick={() => setImportModal(false)} className="flex-1 bg-white border border-slate-200 text-slate-600 font-bold py-4 rounded-2xl">취소</button>
+                                </div>
+                            </div>
                         </div>
-                    </div>
+                    )}
                 </div>
             );
         };
