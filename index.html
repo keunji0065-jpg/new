@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cellina Cloud | 통합 관리 및 라벨 인쇄 시스템</title>
+    <title>Cellina Cloud | 구글 시트 연동 관리 시스템</title>
     <!-- 라이브러리 로드 -->
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
@@ -175,7 +175,8 @@
             'palette': <><circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.6-.7 1.6-1.6 0-.4-.2-.8-.5-1.1-.3-.3-.4-.7-.4-1.1 0-.9.7-1.6 1.6-1.6H16c3.3 0 6-2.7 6-6 0-4.4-4.5-8-10-8z"/></>,
             'maximize': <><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></>,
             'edit-2': <><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></>,
-            'move': <><polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/></>
+            'move': <><polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/></>,
+            'refresh': <><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></>
         };
 
         const Icon = ({ name, size = 20, className = "" }) => (
@@ -186,26 +187,23 @@
 
         const MAX_ROWS = 32; 
 
-        // 가로 2단 기본 설정
         const INITIAL_DATA = {
             sample: { 
                 title: "샘플 목록", 
-                printCols: 2,           
-                orientation: "landscape", 
-                fontSize: 12, titleFontSize: 18, fontFamily: "'Noto Sans KR', sans-serif",
+                printCols: 2, orientation: "landscape", fontSize: 12, titleFontSize: 18, fontFamily: "'Noto Sans KR', sans-serif",
                 items: [{ id: Date.now(), cat: "기본", name: "샘플 데이터", origin: "국산", vendor: "비고", checked: false }], 
-                themes: { "기본": "#10b981" }, order: ["기본"] 
+                themes: { "기본": "#10b981" }, order: ["기본"],
+                sheetUrl: "" 
             },
             carton: { 
                 title: "카톤박스", 
-                printCols: 2,           
-                orientation: "landscape", 
-                fontSize: 12, titleFontSize: 18, fontFamily: "'Noto Sans KR', sans-serif",
+                printCols: 2, orientation: "landscape", fontSize: 12, titleFontSize: 18, fontFamily: "'Noto Sans KR', sans-serif",
                 items: [
                     { id: Date.now()+1, cat: "생산라벨", name: "생산품명 예시", origin: "", vendor: "소비기한", checked: false },
                     { id: Date.now()+2, cat: "박스라벨", name: "박스명 예시", origin: "", vendor: "", checked: false }
                 ], 
-                themes: { "생산라벨": "#ef4444", "박스라벨": "#1e293b" }, order: ["생산라벨", "박스라벨"] 
+                themes: { "생산라벨": "#ef4444", "박스라벨": "#1e293b" }, order: ["생산라벨", "박스라벨"],
+                sheetUrl: ""
             }
         };
 
@@ -256,11 +254,11 @@
             const [labelModal, setLabelModal] = useState(null);
             const [importModal, setImportModal] = useState(false);
             const [importText, setImportText] = useState("");
+            const [sheetUrlInput, setSheetUrlInput] = useState("");
             const [saveStatus, setSaveStatus] = useState("idle");
 
-            const appId = typeof __app_id !== 'undefined' ? __app_id : 'cellina-cloud-final-v1';
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'cellina-cloud-v14-gsync';
 
-            // Firebase 초기화 및 인증 안정화
             useEffect(() => {
                 const initAuth = async () => {
                     if (!window.FirebaseSDK) { setLoading(false); return; }
@@ -270,22 +268,11 @@
                     const auth = getAuth(app);
                     const db = getFirestore(app);
                     window.db = db;
-                    
                     try {
-                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                            await signInWithCustomToken(auth, __initial_auth_token);
-                        } else {
-                            await signInAnonymously(auth);
-                        }
-                    } catch (err) { 
-                        console.error("Auth Error:", err); 
-                        setLoading(false); // 인증 실패 시에도 무한 로딩 방지
-                    }
-                    
-                    onAuthStateChanged(auth, (u) => {
-                        setUser(u);
-                        if (!u) setLoading(false); // 사용자 정보 없으면 로딩 해제
-                    });
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) await signInWithCustomToken(auth, __initial_auth_token);
+                        else await signInAnonymously(auth);
+                    } catch (err) { console.error("Auth Error:", err); setLoading(false); }
+                    onAuthStateChanged(auth, (u) => { setUser(u); if (!u) setLoading(false); });
                 };
                 initAuth();
             }, []);
@@ -294,7 +281,7 @@
                 if (!user || !window.db) return;
                 setSaveStatus("saving");
                 const { doc, setDoc } = window.FirebaseSDK;
-                const docRef = doc(window.db, 'artifacts', appId, 'public', 'data', 'inventory_main', 'current_state');
+                const docRef = doc(window.db, 'artifacts', appId, 'public', 'data', 'inventory_gsync', 'current_state');
                 try {
                     await setDoc(docRef, { tabData: newData, updatedAt: Date.now() });
                     setSaveStatus("saved");
@@ -302,35 +289,93 @@
                 } catch (err) { console.error("Save Error:", err); setSaveStatus("idle"); }
             }, [user, appId]);
 
-            // 데이터 실시간 동기화 및 무한 로딩 방지
             useEffect(() => {
                 if (!user || !window.db) return;
                 const { doc, onSnapshot } = window.FirebaseSDK;
-                const docRef = doc(window.db, 'artifacts', appId, 'public', 'data', 'inventory_main', 'current_state');
-                
+                const docRef = doc(window.db, 'artifacts', appId, 'public', 'data', 'inventory_gsync', 'current_state');
                 const unsubscribe = onSnapshot(docRef, (snapshot) => {
                     if (snapshot.exists()) {
                         const data = snapshot.data().tabData;
                         const migrated = Object.keys(data).reduce((acc, key) => {
                             acc[key] = { 
                                 fontSize: 12, titleFontSize: 18, orientation: "landscape", printCols: 2, 
-                                fontFamily: "'Noto Sans KR', sans-serif", ...data[key] 
+                                fontFamily: "'Noto Sans KR', sans-serif", sheetUrl: "", ...data[key] 
                             };
                             return acc;
                         }, {});
                         setTabData(migrated);
-                    } else {
-                        saveToCloud(INITIAL_DATA);
-                    }
+                    } else { saveToCloud(INITIAL_DATA); }
                     setLoading(false);
-                }, (err) => { 
-                    console.error("Sync Error:", err); 
-                    setLoading(false); // 에러 발생 시 로딩 종료
-                });
+                }, (err) => { console.error("Sync Error:", err); setLoading(false); });
                 return () => unsubscribe();
             }, [user, appId, saveToCloud]);
 
             const current = tabData[activeTab] || INITIAL_DATA[activeTab];
+
+            // 구글 시트 데이터 파싱 및 연동 함수
+            const syncWithGoogleSheet = async (url) => {
+                if (!url) return;
+                setSaveStatus("saving");
+                try {
+                    // 구글 시트 ID 추출 로직
+                    const sheetIdMatch = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
+                    if (!sheetIdMatch) throw new Error("올바른 구글 시트 주소가 아닙니다.");
+                    const sheetId = sheetIdMatch[1];
+                    
+                    // 구글 시트 GViz API를 이용해 CSV 형태로 가져오기
+                    const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv`;
+                    const response = await fetch(csvUrl);
+                    const csvText = await response.text();
+                    
+                    // CSV 파싱 (간이 파서: 따옴표 내 쉼표 처리 포함)
+                    const rows = csvText.split('\n').map(row => {
+                        const matches = row.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g);
+                        return matches ? matches.map(m => m.replace(/^"|"$/g, '')) : [];
+                    }).filter(row => row.length > 0);
+
+                    if (rows.length < 1) throw new Error("시트에 데이터가 없습니다.");
+
+                    const nextItems = [];
+                    const nextOrder = [];
+                    const nextThemes = { ...current.themes };
+
+                    // 헤더 제외 (첫 줄이 [분류, 제품명, 원산지, 공급사]라고 가정)
+                    rows.forEach((cols, idx) => {
+                        if (idx === 0 && (cols[0].includes("분류") || cols[0].includes("Category"))) return;
+                        
+                        const cat = cols[0] ? cols[0].trim() : "기타";
+                        const name = cols[1] ? cols[1].trim() : "";
+                        const origin = cols[2] ? cols[2].trim() : "";
+                        const vendor = cols[3] ? cols[3].trim() : "";
+
+                        if (!nextOrder.includes(cat)) {
+                            nextOrder.push(cat);
+                            if (!nextThemes[cat]) nextThemes[cat] = "#6366f1";
+                        }
+
+                        nextItems.push({
+                            id: Date.now() + idx,
+                            cat: cat,
+                            name: name,
+                            origin: origin,
+                            vendor: vendor,
+                            checked: false
+                        });
+                    });
+
+                    const nextData = { ...tabData, [activeTab]: { ...current, items: nextItems, order: nextOrder, themes: nextThemes, sheetUrl: url } };
+                    setTabData(nextData);
+                    saveToCloud(nextData);
+                    setSaveStatus("saved");
+                    setTimeout(() => setSaveStatus("idle"), 2000);
+                    return true;
+                } catch (err) {
+                    console.error("Sheet Sync Error:", err);
+                    alert("시트 연동 실패: " + err.message + "\n시트가 '링크가 있는 모든 사용자'에게 공개되어 있는지 확인하세요.");
+                    setSaveStatus("idle");
+                    return false;
+                }
+            };
 
             const updateCurrentData = (updates) => {
                 const nextData = { ...tabData, [activeTab]: { ...current, ...updates } };
@@ -350,6 +395,16 @@
 
             const deleteItem = (id) => {
                 const nextItems = current.items.filter(i => i.id !== id);
+                updateCurrentData({ items: nextItems });
+            };
+
+            const deleteChecked = () => {
+                const nextItems = current.items.filter(i => !i.checked);
+                updateCurrentData({ items: nextItems });
+            };
+
+            const uncheckAll = () => {
+                const nextItems = current.items.map(i => ({...i, checked: false}));
                 updateCurrentData({ items: nextItems });
             };
 
@@ -451,32 +506,30 @@
                 return { headers: ['품목명', '원산지', '공급사'], keys: ['name', 'origin', 'vendor'], widths: ['auto', 'w-24', 'w-32'] };
             };
 
-            if (loading) return (
-                <div className="loading-overlay">
-                    <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
-                    <p className="text-slate-500 font-bold mt-4 animate-pulse">실시간 클라우드 연결 중...</p>
-                </div>
-            );
+            if (loading) return <div className="loading-overlay"><div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div><p className="text-slate-400 font-bold text-sm">연결 중...</p></div>;
 
             return (
                 <div className="min-h-screen flex flex-col">
                     <header className="no-print bg-slate-900 text-white shadow-2xl z-50 sticky top-0">
                         <div className="max-w-[1600px] mx-auto p-4 flex flex-wrap justify-between items-center gap-4">
                             <div className="flex items-center gap-4">
-                                <div className="bg-indigo-600 p-2.5 rounded-xl"><Icon name="cloud" size={24} /></div>
+                                <div className="bg-indigo-600 p-2.5 rounded-xl shadow-lg"><Icon name="cloud" size={24} /></div>
                                 <div>
                                     <h1 className="text-xl font-black tracking-tighter uppercase leading-none">Cellina Cloud</h1>
                                     <div className="flex items-center gap-2 mt-1">
                                         <div className={`w-2 h-2 rounded-full ${saveStatus === 'saving' ? 'bg-yellow-400 animate-ping' : 'bg-green-500'}`}></div>
-                                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{saveStatus === 'saving' ? '저장 중...' : '자동 저장 활성'}</span>
+                                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{current.sheetUrl ? '구글 시트 연동 중' : '자동 저장 활성'}</span>
                                     </div>
                                 </div>
                             </div>
                             <div className="flex flex-wrap items-center gap-3">
                                 {!labelModal ? (
                                     <React.Fragment>
-                                        <button onClick={() => setImportModal(true)} className="bg-slate-800 hover:bg-slate-700 px-4 py-2 rounded-lg font-bold text-xs flex items-center gap-2 transition-all"><Icon name="upload-cloud" size={14} /> 가져오기</button>
-                                        <button onClick={addCategory} className="bg-slate-800 hover:bg-slate-700 px-4 py-2 rounded-lg font-bold text-xs flex items-center gap-2 transition-all"><Icon name="folder-plus" size={14} /> 분류추가</button>
+                                        {current.sheetUrl && (
+                                            <button onClick={() => syncWithGoogleSheet(current.sheetUrl)} className="bg-green-600 hover:bg-green-500 px-4 py-2 rounded-lg font-bold text-xs flex items-center gap-2 transition-all shadow-md"><Icon name="refresh" size={14} /> 시트 새로고침</button>
+                                        )}
+                                        <button onClick={() => { setImportModal(true); setSheetUrlInput(current.sheetUrl || ""); }} className="bg-slate-800 hover:bg-slate-700 px-4 py-2 rounded-lg font-bold text-xs flex items-center gap-2 transition-all"><Icon name="sheet" size={14} /> 데이터 관리</button>
+                                        <button onClick={addCategory} className="bg-slate-800 hover:bg-slate-700 px-4 py-2 rounded-lg font-bold text-xs flex items-center gap-2 transition-all"><Icon name="folder-plus" size={14} /> 분류 추가</button>
                                         <div className="h-6 w-px bg-slate-700 mx-1"></div>
                                         <div className="flex bg-slate-800 p-1 rounded-lg">
                                             <button onClick={() => updateCurrentData({orientation: 'portrait'})} className={`px-3 py-1.5 rounded-md text-[10px] font-black transition-all ${current.orientation === 'portrait' ? 'bg-indigo-600 text-white' : 'text-slate-500'}`}>세로</button>
@@ -608,7 +661,7 @@
                                                     <button onClick={() => setLabelModal({...labelModal, isSingleZone: true})} className={`flex-1 py-2 text-[11px] font-black rounded-lg transition-all ${labelModal.isSingleZone ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-50'}`}>단일</button>
                                                 </div>
                                                 <div className="space-y-2">
-                                                    <label className="text-[10px] font-bold text-slate-400">라벨명</label>
+                                                    <label className="text-[10px] font-bold text-slate-400">제품명</label>
                                                     <textarea value={labelModal.mainText} onChange={e => setLabelModal({...labelModal, mainText: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold text-lg h-32 resize-none outline-none focus:ring-2 focus:ring-indigo-200 transition-all" />
                                                 </div>
                                                 {!labelModal.isSingleZone && <div className="space-y-2"><label className="text-[10px] font-bold text-slate-400">하단 문구</label><input value={labelModal.footerText} onChange={e => setLabelModal({...labelModal, footerText: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold outline-none" /></div>}
@@ -620,6 +673,15 @@
                                                 <DualColorPicker label="상단 배경" colorKey="bgTop" currentColor={labelModal.bgTop} onColorSelect={(k, v) => setLabelModal({...labelModal, [k]: v})} />
                                                 <DualColorPicker label="상단 글자" colorKey="colorTop" currentColor={labelModal.colorTop} onColorSelect={(k, v) => setLabelModal({...labelModal, [k]: v})} />
                                                 {!labelModal.isSingleZone && <><DualColorPicker label="하단 배경" colorKey="bgBottom" currentColor={labelModal.bgBottom} onColorSelect={(k, v) => setLabelModal({...labelModal, [k]: v})} /><DualColorPicker label="하단 글자" colorKey="colorBottom" currentColor={labelModal.colorBottom} onColorSelect={(k, v) => setLabelModal({...labelModal, [k]: v})} /></>}
+                                            </div>
+                                            <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl">
+                                                <label className="text-[10px] font-bold text-slate-400 mb-2 block">글꼴</label>
+                                                <select value={labelModal.fontFamily} onChange={e => setLabelModal({...labelModal, fontFamily: e.target.value})} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 font-bold text-sm outline-none shadow-sm focus:ring-2 focus:ring-indigo-200">
+                                                    <option value="'Noto Sans KR', sans-serif">본고딕</option>
+                                                    <option value="'Nanum Gothic', sans-serif">나눔고딕</option>
+                                                    <option value="'Nanum Myeongjo', serif">나눔명조</option>
+                                                    <option value="'Black Han Sans', sans-serif">검은고딕 (굵게)</option>
+                                                </select>
                                             </div>
                                         </div>
                                         <div className="lg:col-span-1 space-y-6">
@@ -635,7 +697,7 @@
                                     <div style={{ backgroundColor: labelModal.bgTop, color: labelModal.colorTop, height: labelModal.isSingleZone ? '100%' : '72%' }} className="flex flex-col justify-center items-center p-12 text-center transition-all duration-300">
                                         <div style={{ fontSize: `${labelModal.mainSize}px`, fontWeight: '900', letterSpacing: '-0.04em', lineHeight: '1.1', whiteSpace: 'pre-wrap' }}>{labelModal.mainText}</div>
                                     </div>
-                                    {!labelModal.isSingleZone && <div style={{ backgroundColor: labelModal.bgBottom, color: labelModal.colorBottom, height: '28%' }} className="flex justify-center items-center transition-all duration-300"><div style={{ fontSize: `${labelModal.footerSize}px`, fontWeight: '900', letterSpacing: '-0.02em' }}>{labelModal.footerText}</div></div>}
+                                    {!labelModal.isSingleZone && <div style={{ backgroundColor: labelModal.bgBottom, color: labelModal.colorBottom, height: '28%' }} className="flex justify-center items-center border-t-4 border-slate-900 transition-all duration-300"><div style={{ fontSize: `${labelModal.footerSize}px`, fontWeight: '900', letterSpacing: '-0.02em' }}>{labelModal.footerText}</div></div>}
                                 </div>
                             </div>
                         )}
@@ -643,27 +705,49 @@
 
                     {importModal && (
                         <div className="fixed inset-0 z-[100] bg-slate-900/70 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
-                            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden">
+                            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden border border-white/20">
                                 <div className="p-6 bg-slate-50 border-b flex justify-between items-center">
-                                    <div className="flex items-center gap-3"><div className="bg-green-100 text-green-600 p-2 rounded-lg"><Icon name="sheet" /></div><div><h2 className="text-xl font-black text-slate-900 leading-tight">스마트 데이터 가져오기</h2><p className="text-xs text-slate-500 font-bold mt-0.5">{current.title} 탭에 추가됩니다.</p></div></div>
-                                    <button onClick={() => setImportModal(false)} className="p-2 hover:bg-slate-200 rounded-full text-slate-400"><Icon name="x" /></button>
+                                    <div className="flex items-center gap-3"><div className="bg-green-100 text-green-600 p-2 rounded-lg"><Icon name="sheet" /></div><div><h2 className="text-xl font-black text-slate-900 leading-tight">구글 시트 연동</h2><p className="text-xs text-slate-500 font-bold mt-0.5">시트와 연동하여 데이터를 실시간 관리하세요.</p></div></div>
+                                    <button onClick={() => setImportModal(false)} className="p-2 hover:bg-slate-200 rounded-full text-slate-400 transition-colors"><Icon name="x" /></button>
                                 </div>
-                                <div className="p-8">
-                                    <div className="bg-indigo-50 border-2 border-dashed border-indigo-200 rounded-2xl p-5 mb-6">
-                                        <h4 className="text-[11px] font-black text-indigo-600 uppercase mb-2 flex items-center gap-1.5"><Icon name="info" size={12}/> {activeTab === 'carton' ? '카톤박스용 복사 순서' : '일반 복사 순서'}</h4>
-                                        <p className="text-xs text-indigo-900/70 leading-relaxed font-bold italic">
-                                            {activeTab === 'carton' 
-                                                ? '[ 분류 ] [ 라벨명 ] [ 원산지(비움) ] [ 소비기한 ]' 
-                                                : '[ 분류 ] [ 제품명 ] [ 원산지 ] [ 공급사 ]'
-                                            }<br/>
-                                            <span className="text-indigo-600 font-black">시트의 열을 드래그하여 복사 후 붙여넣으세요.</span>
-                                        </p>
+                                <div className="p-8 space-y-6">
+                                    {/* 구글 시트 주소 입력 섹션 */}
+                                    <div className="bg-green-50 border border-green-100 rounded-2xl p-5">
+                                        <h4 className="text-[11px] font-black text-green-700 uppercase mb-3 flex items-center gap-1.5"><Icon name="refresh" size={12}/> 구글 시트 주소 연동</h4>
+                                        <div className="flex gap-2">
+                                            <input 
+                                                value={sheetUrlInput}
+                                                onChange={e => setSheetUrlInput(e.target.value)}
+                                                className="flex-1 bg-white border border-green-200 rounded-xl px-4 py-3 text-sm focus:ring-4 focus:ring-green-500/10 outline-none"
+                                                placeholder="구글 시트 브라우저 주소를 붙여넣으세요..."
+                                            />
+                                            <button 
+                                                onClick={() => { syncWithGoogleSheet(sheetUrlInput); }}
+                                                className="bg-green-600 hover:bg-green-700 text-white font-black px-6 py-3 rounded-xl shadow-lg transition-all"
+                                            >연동</button>
+                                        </div>
+                                        <p className="text-[10px] text-green-600/70 mt-3 font-bold">※ 시트의 '공유' 설정이 '링크가 있는 모든 사용자'가 '뷰어' 이상으로 되어 있어야 합니다.</p>
                                     </div>
-                                    <textarea value={importText} onChange={e => setImportText(e.target.value)} className="w-full h-72 bg-slate-50 border-2 border-slate-200 rounded-2xl p-5 text-sm font-mono focus:border-indigo-500 outline-none transition-all" placeholder="데이터를 붙여넣으세요..." />
+
+                                    <div className="relative">
+                                        <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-slate-100"></span></div>
+                                        <div className="relative flex justify-center text-[10px] font-black uppercase text-slate-300 bg-white px-2">또는 직접 붙여넣기</div>
+                                    </div>
+
+                                    <div className="space-y-4">
+                                        <div className="bg-indigo-50 border-2 border-dashed border-indigo-200 rounded-2xl p-5">
+                                            <h4 className="text-[11px] font-black text-indigo-600 uppercase mb-2 flex items-center gap-1.5"><Icon name="info" size={12}/> 데이터 순서 (탭 구분)</h4>
+                                            <p className="text-xs text-indigo-900/70 leading-relaxed font-bold italic">
+                                                [ 분류 ] [ 제품명 ] [ 원산지 ] [ 공급사 ]<br/>
+                                                <span className="text-indigo-600 font-black">시트의 열을 드래그하여 복사 후 아래에 붙여넣으세요.</span>
+                                            </p>
+                                        </div>
+                                        <textarea value={importText} onChange={e => setImportText(e.target.value)} className="w-full h-40 bg-slate-50 border-2 border-slate-200 rounded-2xl p-5 text-sm font-mono focus:border-indigo-500 outline-none transition-all" placeholder="데이터를 붙여넣으세요..." />
+                                        <button onClick={handleImport} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4 rounded-2xl shadow-lg flex items-center justify-center gap-2 transition-all"><Icon name="check" size={18} /> 직접 데이터 추가</button>
+                                    </div>
                                 </div>
-                                <div className="p-6 bg-slate-50 flex gap-3">
-                                    <button onClick={handleImport} className="flex-[2] bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4 rounded-2xl shadow-lg flex items-center justify-center gap-2 transition-all"><Icon name="check" size={18} /> 항목 분류 추가</button>
-                                    <button onClick={() => setImportModal(false)} className="flex-1 bg-white border border-slate-200 text-slate-600 font-bold py-4 rounded-2xl">취소</button>
+                                <div className="p-6 bg-slate-50">
+                                    <button onClick={() => setImportModal(false)} className="w-full bg-white border border-slate-200 text-slate-600 font-bold py-4 rounded-2xl hover:bg-slate-100 transition-all">닫기</button>
                                 </div>
                             </div>
                         </div>
