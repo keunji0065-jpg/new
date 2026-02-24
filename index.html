@@ -20,6 +20,9 @@
         }
         
         @media print {
+            @page { 
+                margin: 5mm; /* 인쇄 여백 5mm로 조절 */
+            }
             .no-print { display: none !important; }
             body { background: white !important; padding: 0 !important; margin: 0 !important; }
             #paper { 
@@ -27,7 +30,7 @@
                 border: none !important; 
                 width: 100% !important; 
                 margin: 0 !important; 
-                padding: 0mm !important; 
+                padding: 0 !important; 
             }
             
             .carton-print-mode,
@@ -171,7 +174,8 @@
             </svg>
         );
 
-        const MAX_ROWS = 32; 
+        // 가로모드 17개, 세로모드 32개 기준
+        const getRowsLimit = (orientation) => orientation === 'landscape' ? 17 : 32;
 
         const INITIAL_DATA = {
             sample: { 
@@ -230,7 +234,7 @@
 
         const App = () => {
             const [tabData, setTabData] = useState(() => {
-                const saved = localStorage.getItem('cellina_inventory_local_v4');
+                const saved = localStorage.getItem('cellina_inventory_local_v5');
                 if (saved) {
                     try { return JSON.parse(saved); } catch(e) { return INITIAL_DATA; }
                 }
@@ -245,7 +249,7 @@
             const [saveStatus, setSaveStatus] = useState("idle");
 
             useEffect(() => {
-                localStorage.setItem('cellina_inventory_local_v4', JSON.stringify(tabData));
+                localStorage.setItem('cellina_inventory_local_v5', JSON.stringify(tabData));
                 setSaveStatus("saved");
                 const timer = setTimeout(() => setSaveStatus("idle"), 2000);
                 return () => clearTimeout(timer);
@@ -331,7 +335,6 @@
 
             const openLabelMaker = (item) => {
                 const isSingle = item.cat === '박스라벨';
-                // 기존 저장된 설정(item.labelSettings)이 있으면 불러오고, 없으면 기본값 적용
                 const config = item.labelSettings || {
                     mainText: item.name || "라벨명",
                     footerText: isSingle ? "" : (item.vendor || "소비기한"),
@@ -343,16 +346,15 @@
                 setLabelModal({ ...config, itemId: item.id, isSaved: false });
             };
 
-            // 라벨 설정 저장 로직
             const saveLabelSettings = () => {
                 if (!labelModal || !labelModal.itemId) return;
                 const nextItems = current.items.map(i => {
                     if (i.id === labelModal.itemId) {
                         return { 
                             ...i, 
-                            name: labelModal.mainText, // 기본 명칭도 편집값으로 업데이트
+                            name: labelModal.mainText, 
                             vendor: labelModal.footerText, 
-                            labelSettings: { ...labelModal } // 설정값 통째로 저장
+                            labelSettings: { ...labelModal } 
                         };
                     }
                     return i;
@@ -423,17 +425,25 @@
                 setImportModal(false); setImportText("");
             };
 
+            // 가로모드 17개 초과 시 박스 분할 (제목/색상 유지, 문구 제거)
             const splitBlocks = useMemo(() => {
                 if (!current) return [];
                 let result = [];
+                const limit = getRowsLimit(current.orientation);
                 current.order.forEach(cat => {
                     const catItems = current.items.filter(i => i.cat === cat);
                     if (catItems.length === 0) {
                         result.push({ id: `${cat}-empty`, originalCat: cat, title: cat, items: [], theme: current.themes[cat] });
                         return;
                     }
-                    for (let i = 0; i < catItems.length; i += MAX_ROWS) {
-                        result.push({ id: `${cat}-${i}`, originalCat: cat, title: cat, items: catItems.slice(i, i + MAX_ROWS), theme: current.themes[cat] });
+                    for (let i = 0; i < catItems.length; i += limit) {
+                        result.push({ 
+                            id: `${cat}-${i}`, 
+                            originalCat: cat, 
+                            title: cat, 
+                            items: catItems.slice(i, i + limit), 
+                            theme: current.themes[cat]
+                        });
                     }
                 });
                 return result;
@@ -457,7 +467,7 @@
                                     <h1 className="text-xl font-black tracking-tighter uppercase leading-none">Cellina Cloud</h1>
                                     <div className="flex items-center gap-2 mt-1">
                                         <div className={`w-2 h-2 rounded-full ${saveStatus === 'saved' ? 'bg-green-500' : 'bg-slate-500'}`}></div>
-                                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">자동 저장 활성</span>
+                                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">로컬 자동 저장</span>
                                     </div>
                                 </div>
                             </div>
