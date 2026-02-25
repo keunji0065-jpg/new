@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cellina Local | 스마트 라벨 저장 관리 시스템</title>
+    <title>Cellina Cloud | 완벽 연동 및 우측 편집 시스템</title>
     <!-- 라이브러리 로드 -->
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
@@ -13,50 +13,49 @@
     <style>
         body { 
             font-family: 'Noto Sans KR', sans-serif; 
-            background-color: #f1f5f9; 
-            margin: 0; 
-            padding: 0; 
-            color: #1e293b;
+            background-color: #cbd5e1; 
+            margin: 0; padding: 0; color: #1e293b;
         }
         
+        /* 인쇄 설정 */
         @media print {
             @page { 
-                size: A4 landscape; /* 가로 방향 고정 */
-                margin: 5mm; /* 사방 여백 5mm 고정 */
+                size: A4 landscape; 
+                margin: 5mm; 
             }
             .no-print { display: none !important; }
             body { background: white !important; padding: 0 !important; margin: 0 !important; }
             
-            /* 인쇄 시 실제 출력 가능 영역 계산: 297 - 10 = 287mm */
             #paper { 
                 box-shadow: none !important; 
                 border: none !important; 
                 width: 287mm !important; 
-                height: auto !important;
                 margin: 0 auto !important; 
                 padding: 0 !important; 
                 display: block !important;
+                background: white !important;
             }
             
-            /* 카톤박스 탭 인쇄 시 모든 선과 테두리 제거 */
-            .carton-print-mode,
-            .carton-print-mode *,
-            .carton-print-mode div,
-            .carton-print-mode table,
-            .carton-print-mode thead,
-            .carton-print-mode tr,
-            .carton-print-mode th,
-            .carton-print-mode td,
-            .carton-print-mode input {
+            /* 카톤박스 인쇄 시: 모든 선과 테두리를 완벽하게 제거 */
+            .carton-view-mode .group\/box,
+            .carton-view-mode table,
+            .carton-view-mode th,
+            .carton-view-mode td,
+            .carton-view-mode thead,
+            .carton-view-mode tr,
+            .carton-view-mode div,
+            .carton-view-mode .print-title-bar {
                 border: none !important;
                 border-width: 0 !important;
                 box-shadow: none !important;
-                outline: none !important;
                 background-color: transparent !important;
+                outline: none !important;
             }
+            
+            .carton-view-mode thead { display: none !important; }
 
             .label-print-area {
-                width: 287mm !important; /* 여백 제외 크기 */
+                width: 287mm !important;
                 height: 200mm !important;
                 margin: 0 !important;
                 padding: 0 !important;
@@ -66,74 +65,60 @@
             * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         }
 
+        /* 화면 페이퍼 뷰 */
         #paper {
             background: white;
-            min-height: 210mm;
-            padding: 10mm;
-            margin: 20px auto;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
-            border-radius: 8px;
+            padding: 5mm; 
+            margin: 30px auto;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            border-radius: 2px;
             transition: all 0.3s ease;
+            position: relative;
+            box-sizing: border-box;
+        }
+
+        /* 화면에서는 구분을 위해 테두리 표시 */
+        .group\/box {
+            border: 2px solid #0f172a; 
         }
 
         .custom-checkbox {
             appearance: none;
-            width: 1.25rem;
-            height: 1.25rem;
-            border: 2px solid #cbd5e1;
-            border-radius: 4px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.2s;
+            width: 1.25rem; height: 1.25rem;
+            border: 2px solid #cbd5e1; border-radius: 4px;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
         }
-        .custom-checkbox:checked {
-            background-color: #4f46e5;
-            border-color: #4f46e5;
-        }
-        .custom-checkbox:checked::after {
-            content: '✓';
-            color: white;
-            font-size: 0.75rem;
-            font-weight: bold;
-        }
+        .custom-checkbox:checked { background-color: #4f46e5; border-color: #4f46e5; }
+        .custom-checkbox:checked::after { content: '✓'; color: white; font-size: 0.75rem; font-weight: bold; }
 
         .tab-button {
-            padding: 12px 24px;
-            font-weight: 800;
-            font-size: 14px;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            border-radius: 12px 12px 0 0;
-            position: relative;
-            bottom: -1px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
+            padding: 12px 24px; font-weight: 800; font-size: 14px;
+            transition: all 0.3s; border-radius: 12px 12px 0 0;
+            position: relative; bottom: -1px; display: flex; align-items: center; gap: 8px;
         }
-        .tab-inactive { background: #0f172a; color: #64748b; border: 1px solid transparent; }
-        .tab-inactive:hover { background: #1e293b; color: #f8fafc; }
-        .tab-active {
-            background: #ffffff; color: #4f46e5; border: 1px solid #e2e8f0;
-            border-bottom: 2px solid white; box-shadow: 0 -10px 15px -3px rgba(0, 0, 0, 0.05);
-        }
+        .tab-inactive { background: #0f172a; color: #64748b; }
+        .tab-active { background: #ffffff; color: #4f46e5; border: 1px solid #e2e8f0; border-bottom: 2px solid white; }
 
         .color-dot-sm {
-            width: 20px;
-            height: 20px;
-            border-radius: 6px;
-            cursor: pointer;
+            width: 22px; height: 22px;
+            border-radius: 6px; cursor: pointer;
             border: 1px solid rgba(0,0,0,0.1);
             transition: all 0.2s;
         }
-        .color-dot-sm:hover { transform: scale(1.2); border-color: white; box-shadow: 0 0 0 2px #4f46e5; }
-        
+        .color-dot-sm:hover { transform: scale(1.2); }
+
         input:focus { outline: none; }
         
-        ::-webkit-scrollbar { width: 10px; height: 10px; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-track { background: #f1f5f9; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; border: 2px solid #f1f5f9; }
-        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+
+        /* 라벨 에디터 사이드바 스크롤 최적화 */
+        .editor-sidebar {
+            max-height: calc(100vh - 180px);
+            overflow-y: auto;
+            scrollbar-width: thin;
+        }
     </style>
 </head>
 <body>
@@ -142,36 +127,28 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useCallback } = React;
 
-        const VIVID_COLORS = [
-            "#EF4444", "#F97316", "#F59E0B", "#EAB308", "#84CC16", "#22C55E", 
-            "#10B981", "#06B6D4", "#3B82F6", "#6366F1", "#8B5CF6", "#A855F7", 
-            "#D946EF", "#EC4899", "#71717a", "#475569", "#b91c1c", "#9d174d", 
-            "#6d28d9", "#1e40af", "#0369a1", "#047857", "#000000"
+        // 고대비 유채색 팔레트 (비슷한 녹색 계열 제거)
+        const DISTINCT_VIVID_COLORS = [
+            "#EF4444", "#F97316", "#F59E0B", "#22C55E", "#3B82F6", 
+            "#6366F1", "#A855F7", "#EC4899", "#06B6D4", "#1e40af", 
+            "#9d174d", "#78350f", "#1f2937", "#0f766e"
         ];
 
-        const COMMON_COLORS = ["#000000", "#FFFFFF", ...VIVID_COLORS.filter(c => c !== "#000000")];
+        const COMMON_COLORS = ["#000000", "#FFFFFF", ...DISTINCT_VIVID_COLORS];
 
         const ICON_PATHS = {
             'cloud': <path d="M17.5 19c2.5 0 4.5-2 4.5-4.5 0-2.3-1.7-4.1-3.9-4.4C17.6 6.5 14.1 4 10 4 6.4 4 3.4 6.3 2.2 9.5 0.9 10.4 0 11.9 0 13.5 0 16.5 2.5 19 5.5 19h12z"/>,
-            'upload-cloud': <><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M12 12v9"/><path d="m8 16 4-4 4 4"/></>,
-            'folder-plus': <><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/><line x1="12" y1="10" x2="12" y2="16"/><line x1="9" y1="13" x2="15" y2="13"/></>,
+            'search': <><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></>,
             'printer': <><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></>,
-            'beaker': <><path d="M4.5 3h15"/><path d="M6 3v16a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V3"/><path d="M6 14h12"/></>,
-            'box': <><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></>,
-            'edit-3': <><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></>,
-            'trash-2': <><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></>,
-            'rotate-ccw': <><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></>,
+            'sheet': <><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></>,
             'plus': <><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></>,
             'trash': <><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></>,
             'x': <><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>,
-            'sheet': <><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></>,
-            'info': <><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="12" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></>,
-            'check': <polyline points="20 6 9 17 4 12"/>,
             'save': <><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></>,
+            'refresh': <><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></>,
+            'edit-3': <><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></>,
             'palette': <><circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.6-.7 1.6-1.6 0-.4-.2-.8-.5-1.1-.3-.3-.4-.7-.4-1.1 0-.9.7-1.6 1.6-1.6H16c3.3 0 6-2.7 6-6 0-4.4-4.5-8-10-8z"/></>,
-            'maximize': <><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></>,
-            'edit-2': <><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></>,
-            'refresh': <><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></>
+            'maximize': <><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></>
         };
 
         const Icon = ({ name, size = 20, className = "" }) => (
@@ -180,14 +157,15 @@
             </svg>
         );
 
-        // 가로모드 17개, 세로모드 32개 기준 분할 로직 고정
-        const getRowsLimit = (orientation) => orientation === 'landscape' ? 17 : 32;
+        // 고정 주소 설정
+        const FIXED_SHEET_URL = "https://docs.google.com/spreadsheets/d/1bC9nm1nAUjHV1L3-B5o8wUO1VpvjFXElN4CPquxZBgU/edit?usp=sharing";
+        const FIXED_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz5J6H87BZCd9LkQqLe9VWfIgm9BnQSBvzjK2T5m6XPPPgZKNQOIAjYZnzer_6zuN4t/exec";
 
         const INITIAL_DATA = {
             sample: { 
                 title: "샘플 목록", printCols: 2, orientation: "landscape", fontSize: 12, titleFontSize: 18, fontFamily: "'Noto Sans KR', sans-serif",
                 items: [{ id: Date.now(), cat: "기본", name: "샘플 데이터", origin: "국산", vendor: "비고", checked: false }], 
-                themes: { "기본": "#10b981" }, order: ["기본"], sheetUrl: "" 
+                themes: { "기본": "#3B82F6" }, order: ["기본"], sheetUrl: FIXED_SHEET_URL, scriptUrl: FIXED_SCRIPT_URL 
             },
             carton: { 
                 title: "카톤박스", printCols: 2, orientation: "landscape", fontSize: 12, titleFontSize: 18, fontFamily: "'Noto Sans KR', sans-serif",
@@ -195,7 +173,7 @@
                     { id: Date.now()+1, cat: "생산라벨", name: "생산품명 예시", origin: "", vendor: "소비기한", checked: false },
                     { id: Date.now()+2, cat: "박스라벨", name: "박스명 예시", origin: "", vendor: "", checked: false }
                 ], 
-                themes: { "생산라벨": "#ef4444", "박스라벨": "#1e293b" }, order: ["생산라벨", "박스라벨"], sheetUrl: ""
+                themes: { "생산라벨": "#EF4444", "박스라벨": "#1f2937" }, order: ["생산라벨", "박스라벨"], sheetUrl: FIXED_SHEET_URL, scriptUrl: FIXED_SCRIPT_URL
             }
         };
 
@@ -222,17 +200,14 @@
         };
 
         const DualColorPicker = ({ label, colorKey, currentColor, onColorSelect }) => (
-            <div className="space-y-3 p-4 bg-slate-50 border border-slate-200 rounded-xl">
-                <div className="flex justify-between items-center">
+            <div className="space-y-2 p-3 bg-white border border-slate-200 rounded-xl shadow-sm">
+                <div className="flex justify-between items-center mb-1">
                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{label}</label>
-                    <div className="flex items-center gap-2">
-                         <span className="text-[10px] font-mono text-slate-400">{currentColor.toUpperCase()}</span>
-                         <input type="color" value={currentColor} onChange={e => onColorSelect(colorKey, e.target.value)} className="w-6 h-6 p-0 border-0 cursor-pointer bg-transparent rounded overflow-hidden" />
-                    </div>
+                    <input type="color" value={currentColor} onChange={e => onColorSelect(colorKey, e.target.value)} className="w-5 h-5 p-0 border-0 cursor-pointer bg-transparent" />
                 </div>
-                <div className="grid grid-cols-8 gap-1.5">
+                <div className="grid grid-cols-8 gap-1">
                     {COMMON_COLORS.map(c => (
-                        <div key={c} className={`color-dot-sm ${currentColor === c ? 'ring-2 ring-indigo-500 ring-offset-2' : ''}`} style={{ backgroundColor: c }} onClick={() => onColorSelect(colorKey, c)} />
+                        <div key={c} className={`color-dot-sm ${currentColor === c ? 'ring-2 ring-indigo-500 ring-offset-1' : ''}`} style={{ backgroundColor: c }} onClick={() => onColorSelect(colorKey, c)} />
                     ))}
                 </div>
             </div>
@@ -240,22 +215,25 @@
 
         const App = () => {
             const [tabData, setTabData] = useState(() => {
-                const saved = localStorage.getItem('cellina_inventory_local_v6');
+                const saved = localStorage.getItem('cellina_inventory_final_v16');
                 if (saved) {
-                    try { return JSON.parse(saved); } catch(e) { return INITIAL_DATA; }
+                    const parsed = JSON.parse(saved);
+                    Object.keys(parsed).forEach(k => {
+                        parsed[k].sheetUrl = FIXED_SHEET_URL;
+                        parsed[k].scriptUrl = FIXED_SCRIPT_URL;
+                    });
+                    return parsed;
                 }
                 return INITIAL_DATA;
             });
 
             const [activeTab, setActiveTab] = useState("sample");
+            const [searchTerm, setSearchTerm] = useState("");
             const [labelModal, setLabelModal] = useState(null);
-            const [importModal, setImportModal] = useState(false);
-            const [importText, setImportText] = useState("");
-            const [sheetUrlInput, setSheetUrlInput] = useState("");
             const [saveStatus, setSaveStatus] = useState("idle");
 
             useEffect(() => {
-                localStorage.setItem('cellina_inventory_local_v6', JSON.stringify(tabData));
+                localStorage.setItem('cellina_inventory_final_v16', JSON.stringify(tabData));
                 setSaveStatus("saved");
                 const timer = setTimeout(() => setSaveStatus("idle"), 2000);
                 return () => clearTimeout(timer);
@@ -263,9 +241,19 @@
 
             const current = tabData[activeTab] || INITIAL_DATA[activeTab];
 
+            const filteredItems = useMemo(() => {
+                const term = searchTerm.toLowerCase();
+                if (!term) return current.items;
+                return current.items.filter(item => 
+                    item.name.toLowerCase().includes(term) || 
+                    item.cat.toLowerCase().includes(term) || 
+                    (item.origin && item.origin.toLowerCase().includes(term)) || 
+                    (item.vendor && item.vendor.toLowerCase().includes(term))
+                );
+            }, [current.items, searchTerm]);
+
             const updateCurrentData = (updates) => {
-                const nextData = { ...tabData, [activeTab]: { ...current, ...updates } };
-                setTabData(nextData);
+                setTabData({ ...tabData, [activeTab]: { ...current, ...updates } });
             };
 
             const toggleCheck = (id) => {
@@ -283,16 +271,6 @@
                 updateCurrentData({ items: nextItems });
             };
 
-            const deleteChecked = () => {
-                const nextItems = current.items.filter(i => !i.checked);
-                updateCurrentData({ items: nextItems });
-            };
-
-            const uncheckAll = () => {
-                const nextItems = current.items.map(i => ({...i, checked: false}));
-                updateCurrentData({ items: nextItems });
-            };
-
             const renameCategory = (oldName, newName) => {
                 if (!newName || oldName === newName) return;
                 const nextItems = current.items.map(i => i.cat === oldName ? { ...i, cat: newName } : i);
@@ -306,32 +284,23 @@
             };
 
             const setCategoryColor = (cat, color) => {
-                const nextThemes = { ...current.themes, [cat]: color };
-                updateCurrentData({ themes: nextThemes });
+                updateCurrentData({ themes: { ...current.themes, [cat]: color } });
             };
 
-            const getNextVividColor = (existingThemes) => {
+            const getDistinctAutoColor = (existingThemes) => {
                 const usedColors = Object.values(existingThemes);
-                const available = VIVID_COLORS.filter(c => !usedColors.includes(c));
-                return available.length > 0 ? available[0] : VIVID_COLORS[Math.floor(Math.random() * VIVID_COLORS.length)];
+                const available = DISTINCT_VIVID_COLORS.filter(c => !usedColors.includes(c));
+                return available.length > 0 ? available[0] : DISTINCT_VIVID_COLORS[Math.floor(Math.random() * DISTINCT_VIVID_COLORS.length)];
             };
 
             const addCategory = () => {
-                const newCatName = `새 분류 ${current.order.length + 1}`;
-                const nextOrder = [...current.order, newCatName];
-                const autoColor = getNextVividColor(current.themes);
-                const nextThemes = { ...current.themes, [newCatName]: autoColor };
-                const nextItems = [{ id: Date.now(), cat: newCatName, name: "제품명", origin: "", vendor: "", checked: false }, ...current.items];
-                updateCurrentData({ items: nextItems, order: nextOrder, themes: nextThemes });
-            };
-
-            const deleteCategory = (catName) => {
-                if (!confirm(`'${catName}' 분류를 삭제할까요?`)) return;
-                const nextOrder = current.order.filter(c => c !== catName);
-                const nextItems = current.items.filter(i => i.cat !== catName);
-                const nextThemes = { ...current.themes };
-                delete nextThemes[catName];
-                updateCurrentData({ items: nextItems, order: nextOrder, themes: nextThemes });
+                const newCat = `분류 ${current.order.length + 1}`;
+                const autoColor = getDistinctAutoColor(current.themes);
+                updateCurrentData({ 
+                    order: [...current.order, newCat],
+                    themes: { ...current.themes, [newCat]: autoColor },
+                    items: [{ id: Date.now(), cat: newCat, name: "제품명", origin: "", vendor: "", checked: false }, ...current.items]
+                });
             };
 
             const addItemToCat = (cat) => {
@@ -342,29 +311,15 @@
             const openLabelMaker = (item) => {
                 const isSingle = item.cat === '박스라벨';
                 const config = item.labelSettings || {
-                    mainText: item.name || "라벨명",
-                    footerText: isSingle ? "" : (item.vendor || "소비기한"),
-                    bgTop: "#EF4444", bgBottom: "#FFFFFF", colorTop: "#FFFFFF", colorBottom: "#000000",
-                    fontFamily: "'Noto Sans KR', sans-serif",
-                    mainSize: 140, footerSize: 90,
-                    isSingleZone: isSingle
+                    mainText: item.name, footerText: isSingle ? "" : item.vendor,
+                    bgTop: "#EF4444", bgTopOriginal: "#EF4444", bgBottom: "#FFFFFF", colorTop: "#FFFFFF", colorBottom: "#000000",
+                    fontFamily: "'Noto Sans KR', sans-serif", mainSize: 140, footerSize: 90, isSingleZone: isSingle
                 };
                 setLabelModal({ ...config, itemId: item.id, isSaved: false });
             };
 
             const saveLabelSettings = () => {
-                if (!labelModal || !labelModal.itemId) return;
-                const nextItems = current.items.map(i => {
-                    if (i.id === labelModal.itemId) {
-                        return { 
-                            ...i, 
-                            name: labelModal.mainText, 
-                            vendor: labelModal.footerText, 
-                            labelSettings: { ...labelModal } 
-                        };
-                    }
-                    return i;
-                });
+                const nextItems = current.items.map(i => i.id === labelModal.itemId ? { ...i, name: labelModal.mainText, vendor: labelModal.footerText, labelSettings: { ...labelModal } } : i);
                 updateCurrentData({ items: nextItems });
                 setLabelModal({ ...labelModal, isSaved: true });
                 setTimeout(() => setLabelModal(prev => prev ? { ...prev, isSaved: false } : null), 1500);
@@ -398,62 +353,46 @@
                         if (!nextOrder.includes(cat)) {
                             nextOrder.push(cat);
                             if (!nextThemes[cat] || nextThemes[cat] === "#FFFFFF") {
-                                nextThemes[cat] = getNextVividColor(nextThemes);
+                                nextThemes[cat] = getDistinctAutoColor(nextThemes);
                             }
                         }
                         nextItems.push({ id: Date.now() + idx, cat: cat, name: name, origin: origin, vendor: vendor, checked: false });
                     });
-                    updateCurrentData({ items: nextItems, order: nextOrder, themes: nextThemes, sheetUrl: url });
-                    alert("구글 시트 연동 완료!");
-                } catch (err) { alert("연동 실패"); }
+                    updateCurrentData({ items: nextItems, order: nextOrder, themes: nextThemes });
+                    alert("구글 시트 동기화 완료!");
+                } catch (err) { alert("연동 에러 발생"); }
             };
 
-            const handleImport = () => {
-                if (!importText.trim()) return;
-                const lines = importText.trim().split('\n');
-                const nextItems = [...current.items];
-                const nextOrder = [...current.order];
-                const nextThemes = { ...current.themes };
-                lines.forEach((line, idx) => {
-                    const cols = line.split('\t');
-                    if (cols.length < 1) return;
-                    const cat = cols[0] ? cols[0].trim() : "기타";
-                    const name = cols[1] ? cols[1].trim() : "";
-                    const origin = cols[2] ? cols[2].trim() : "";
-                    const vendor = cols[3] ? cols[3].trim() : "";
-                    if (!nextOrder.includes(cat)) { 
-                        nextOrder.push(cat); 
-                        if (!nextThemes[cat] || nextThemes[cat] === "#FFFFFF") nextThemes[cat] = getNextVividColor(nextThemes);
-                    }
-                    nextItems.unshift({ id: Date.now() + idx, cat: cat, name: name, origin: origin, vendor: vendor, checked: false });
-                });
-                updateCurrentData({ items: nextItems, order: nextOrder, themes: nextThemes });
-                setImportModal(false); setImportText("");
+            const pushToGoogleSheet = async () => {
+                if (!FIXED_SCRIPT_URL) return;
+                setSaveStatus("saving");
+                try {
+                    const pushData = current.items.map(item => [item.cat, item.name, item.origin || "", item.vendor || ""]);
+                    await fetch(FIXED_SCRIPT_URL, {
+                        method: "POST",
+                        mode: "no-cors",
+                        cache: "no-cache",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(pushData)
+                    });
+                    alert("구글 시트 저장 요청 완료!");
+                } catch (err) { alert("저장 실패"); }
+                finally { setSaveStatus("saved"); }
             };
 
-            // 가로모드 17개 초과 시 박스 분할 (제목/색상 똑같게 고정)
             const splitBlocks = useMemo(() => {
-                if (!current) return [];
+                const limit = current.orientation === 'landscape' ? 17 : 32;
                 let result = [];
-                const limit = getRowsLimit(current.orientation);
                 current.order.forEach(cat => {
-                    const catItems = current.items.filter(i => i.cat === cat);
-                    if (catItems.length === 0) {
-                        result.push({ id: `${cat}-empty`, originalCat: cat, title: cat, items: [], theme: current.themes[cat] });
-                        return;
-                    }
-                    for (let i = 0; i < catItems.length; i += limit) {
-                        result.push({ 
-                            id: `${cat}-${i}`, 
-                            originalCat: cat, 
-                            title: cat, // 똑같은 제목 사용
-                            items: catItems.slice(i, i + limit), 
-                            theme: current.themes[cat] // 똑같은 색상 사용
-                        });
+                    const catItems = filteredItems.filter(i => i.cat === cat);
+                    if (catItems.length > 0 || (!searchTerm && current.items.some(i => i.cat === cat))) {
+                        for (let i = 0; i < catItems.length; i += limit) {
+                            result.push({ id: `${cat}-${i}`, originalCat: cat, title: cat, items: catItems.slice(i, i + limit), theme: current.themes[cat] });
+                        }
                     }
                 });
                 return result;
-            }, [current]);
+            }, [current, filteredItems, searchTerm]);
 
             const getColConfig = (catName) => {
                 if (activeTab === 'carton') {
@@ -468,189 +407,181 @@
                     <header className="no-print bg-slate-900 text-white shadow-2xl z-50 sticky top-0">
                         <div className="max-w-[1600px] mx-auto p-4 flex flex-wrap justify-between items-center gap-4">
                             <div className="flex items-center gap-4">
-                                <div className="bg-indigo-600 p-2.5 rounded-xl shadow-lg"><Icon name="cloud" size={24} /></div>
+                                <div className="bg-indigo-600 p-2.5 rounded-xl"><Icon name="cloud" size={24} /></div>
                                 <div>
                                     <h1 className="text-xl font-black tracking-tighter uppercase leading-none">Cellina Cloud</h1>
-                                    <div className="flex items-center gap-2 mt-1">
-                                        <div className={`w-2 h-2 rounded-full ${saveStatus === 'saved' ? 'bg-green-500' : 'bg-slate-500'}`}></div>
-                                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">로컬 자동 저장</span>
-                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-bold mt-1 uppercase tracking-widest">Two-way Sync ACTIVE</p>
                                 </div>
                             </div>
-                            <div className="flex flex-wrap items-center gap-3">
+
+                            <div className="flex-1 max-w-md mx-4">
+                                <div className="relative group">
+                                    <Icon name="search" size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-indigo-400 transition-colors" />
+                                    <input 
+                                        type="text" placeholder="검색어로 빠른 찾기..." 
+                                        value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+                                        className="w-full bg-slate-800 border border-slate-700 rounded-2xl pl-11 pr-4 py-2.5 text-sm focus:bg-slate-950 focus:border-indigo-500 transition-all outline-none"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-3">
                                 {!labelModal ? (
-                                    <React.Fragment>
-                                        {current.sheetUrl && <button onClick={() => syncWithGoogleSheet(current.sheetUrl)} className="bg-green-600 hover:bg-green-500 px-4 py-2 rounded-lg font-bold text-xs flex items-center gap-2 transition-all shadow-md"><Icon name="refresh" size={14} /> 시트 갱신</button>}
-                                        <button onClick={() => { setImportModal(true); setSheetUrlInput(current.sheetUrl || ""); }} className="bg-slate-800 hover:bg-slate-700 px-4 py-2 rounded-lg font-bold text-xs flex items-center gap-2 transition-all"><Icon name="sheet" size={14} /> 데이터 관리</button>
-                                        <button onClick={addCategory} className="bg-slate-800 hover:bg-slate-700 px-4 py-2 rounded-lg font-bold text-xs flex items-center gap-2 transition-all"><Icon name="folder-plus" size={14} /> 분류 추가</button>
-                                        <div className="h-6 w-px bg-slate-700 mx-1"></div>
-                                        <div className="flex bg-slate-800 p-1 rounded-lg">
-                                            <button onClick={() => updateCurrentData({orientation: 'portrait'})} className={`px-3 py-1.5 rounded-md text-[10px] font-black transition-all ${current.orientation === 'portrait' ? 'bg-indigo-600 text-white' : 'text-slate-500'}`}>세로</button>
-                                            <button onClick={() => updateCurrentData({orientation: 'landscape'})} className={`px-3 py-1.5 rounded-md text-[10px] font-black transition-all ${current.orientation === 'landscape' ? 'bg-indigo-600 text-white' : 'text-slate-500'}`}>가로</button>
+                                    <>
+                                        <button onClick={pushToGoogleSheet} className="bg-blue-600 hover:bg-blue-500 px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 shadow-md transition-all"><Icon name="save" size={14} /> 시트에 저장</button>
+                                        <button onClick={() => syncWithGoogleSheet(FIXED_SHEET_URL)} className="bg-green-600 hover:bg-green-500 px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 shadow-md transition-all"><Icon name="refresh" size={14} /> 시트 갱신</button>
+                                        <button onClick={addCategory} className="bg-slate-800 hover:bg-slate-700 px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all"><Icon name="plus" size={14} /> 분류 추가</button>
+                                        <div className="flex bg-slate-800 p-1 rounded-xl">
+                                            <button onClick={() => updateCurrentData({orientation: 'portrait'})} className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-all ${current.orientation === 'portrait' ? 'bg-indigo-600' : 'text-slate-500'}`}>세로</button>
+                                            <button onClick={() => updateCurrentData({orientation: 'landscape'})} className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-all ${current.orientation === 'landscape' ? 'bg-indigo-600' : 'text-slate-50'}`}>가로</button>
                                         </div>
-                                        <button onClick={() => window.print()} className="bg-white text-slate-900 hover:bg-indigo-50 px-5 py-2 rounded-lg font-black flex items-center gap-2 shadow-lg text-xs transition-all"><Icon name="printer" size={14} /> 인쇄</button>
-                                    </React.Fragment>
+                                        <button onClick={() => window.print()} className="bg-white text-slate-900 px-6 py-2.5 rounded-xl font-black flex items-center gap-2 shadow-lg text-xs hover:bg-slate-100 transition-all"><Icon name="printer" size={14} /> 인쇄</button>
+                                    </>
                                 ) : (
-                                    <React.Fragment>
-                                        <button onClick={saveLabelSettings} className={`px-6 py-2 rounded-lg font-black flex items-center gap-2 shadow-lg text-sm transition-all ${labelModal.isSaved ? 'bg-green-500 text-white' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
+                                    <>
+                                        <button onClick={saveLabelSettings} className={`px-6 py-2.5 rounded-xl font-black flex items-center gap-2 shadow-lg text-sm transition-all ${labelModal.isSaved ? 'bg-green-500' : 'bg-blue-600'}`}>
                                             <Icon name={labelModal.isSaved ? "check" : "save"} size={16} /> {labelModal.isSaved ? "저장됨" : "설정 저장"}
                                         </button>
-                                        <button onClick={() => window.print()} className="bg-indigo-600 text-white hover:bg-indigo-700 px-8 py-2 rounded-lg font-black flex items-center gap-2 shadow-lg text-sm transition-all"><Icon name="printer" size={16} /> 라벨 인쇄</button>
-                                        <button onClick={() => setLabelModal(null)} className="bg-slate-700 text-white px-4 py-2 rounded-lg font-bold text-sm">목록으로</button>
-                                    </React.Fragment>
+                                        <button onClick={() => window.print()} className="bg-indigo-600 px-8 py-2.5 rounded-xl font-black flex items-center gap-2 shadow-lg text-sm transition-all"><Icon name="printer" size={16} /> 인쇄</button>
+                                        <button onClick={() => setLabelModal(null)} className="bg-slate-700 px-4 py-2.5 rounded-xl font-bold text-sm">목록으로</button>
+                                    </>
                                 )}
                             </div>
                         </div>
                         <div className="px-6 flex gap-2 overflow-x-auto no-scrollbar">
                             {Object.keys(tabData).map(key => (
-                                <button key={key} onClick={() => {setActiveTab(key); setLabelModal(null);}} className={`tab-button min-w-[120px] ${activeTab === key ? 'tab-active' : 'tab-inactive'}`}>
-                                    <Icon name={key === 'sample' ? 'beaker' : 'box'} size={14} />
-                                    <span className="font-black select-none">{tabData[key].title}</span>
+                                <button key={key} onClick={() => { setActiveTab(key); setSearchTerm(""); }} className={`tab-button min-w-[120px] ${activeTab === key ? 'tab-active' : 'tab-inactive'}`}>
+                                    <span className="font-black uppercase">{tabData[key].title}</span>
                                 </button>
                             ))}
                         </div>
                     </header>
 
-                    <main className="flex-1 p-4 md:p-8 overflow-y-auto">
+                    <main className="flex-1 overflow-y-auto pb-20">
                         {!labelModal ? (
-                            <div className="max-w-[1600px] mx-auto">
-                                <div className="no-print mb-6 flex flex-wrap justify-between items-center bg-white p-4 rounded-xl border border-slate-200 shadow-sm gap-4">
-                                    <div className="flex items-center gap-3">
-                                        <span className="text-sm font-bold text-slate-500 ml-2">선택: {current.items.filter(i => i.checked).length}개</span>
-                                        {current.items.some(i => i.checked) && (
-                                            <div className="flex gap-2 animate-in fade-in slide-in-from-bottom-2">
-                                                <button onClick={deleteChecked} className="bg-red-50 text-red-600 hover:bg-red-100 px-3 py-1.5 rounded-lg text-xs font-black flex items-center gap-1.5"><Icon name="trash-2" size={14} /> 삭제</button>
-                                                <button onClick={uncheckAll} className="bg-slate-100 text-slate-600 hover:bg-slate-200 px-3 py-1.5 rounded-lg text-xs font-black flex items-center gap-1.5"><Icon name="rotate-ccw" size={14} /> 해제</button>
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div className="flex flex-wrap items-center gap-4 bg-slate-50 p-2 rounded-xl border border-slate-100">
-                                        <div className="flex items-center gap-2 border-r border-slate-200 pr-4"><span className="text-[10px] font-black text-slate-400 uppercase">분류제목</span><input type="number" value={current.titleFontSize} onChange={e => updateCurrentData({titleFontSize: parseInt(e.target.value)})} className="w-12 bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-bold" /></div>
-                                        <div className="flex items-center gap-2 border-r border-slate-200 pr-4"><span className="text-[10px] font-black text-slate-400 uppercase">본문</span><input type="number" value={current.fontSize} onChange={e => updateCurrentData({fontSize: parseInt(e.target.value)})} className="w-12 bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-bold" /></div>
-                                        <div className="flex items-center gap-2 border-r border-slate-200 pr-4"><span className="text-[10px] font-black text-slate-400 uppercase">글꼴</span><select value={current.fontFamily} onChange={e => updateCurrentData({fontFamily: e.target.value})} className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-bold"><option value="'Noto Sans KR', sans-serif">본고딕</option><option value="'Nanum Gothic', sans-serif">나눔고딕</option><option value="'Nanum Myeongjo', serif">나눔명조</option><option value="'Black Han Sans', sans-serif">검은고딕</option></select></div>
-                                        <div className="flex gap-1 ml-2">{[1, 2, 3].map(n => (<button key={n} onClick={() => updateCurrentData({printCols: n})} className={`px-3 py-1 rounded-lg text-[10px] font-black transition-all border ${current.printCols === n ? 'bg-slate-900 text-white border-slate-900 shadow-md' : 'bg-white text-slate-500 border-slate-200'}`}>{n}단</button>))}</div>
-                                    </div>
-                                </div>
-
-                                <div id="paper" className={activeTab === 'carton' ? 'carton-print-mode' : ''} style={{ width: current.orientation === 'portrait' ? '210mm' : '297mm', fontFamily: current.fontFamily }}>
-                                    <div className={`grid gap-x-6 gap-y-10 items-start ${current.printCols === 1 ? 'grid-cols-1' : (current.printCols === 2 ? 'grid-cols-2' : 'grid-cols-3')}`}>
-                                        {splitBlocks.map((block) => {
-                                            const config = getColConfig(block.originalCat);
-                                            return (
-                                                <div key={block.id} className="group/box border-2 border-slate-900 rounded-xl overflow-hidden bg-white shadow-sm transition-all relative break-inside-avoid">
-                                                    <div style={{ backgroundColor: block.theme || '#1e293b' }} className="flex items-center justify-between px-3 py-2 no-print">
-                                                        <div className="flex items-center gap-2 flex-1 overflow-hidden">
-                                                            <EditableTitle initialValue={block.title} onSave={(val) => renameCategory(block.originalCat, val)} style={{ fontSize: `${current.titleFontSize}px`, fontWeight: '900', color: 'white' }} className="flex-1" />
-                                                            <input type="color" value={block.theme || '#1e293b'} onChange={(e) => setCategoryColor(block.originalCat, e.target.value)} className="w-5 h-5 bg-transparent border-0 cursor-pointer p-0 overflow-hidden rounded shrink-0" />
-                                                        </div>
-                                                        <div className="flex items-center gap-1 opacity-0 group-hover/box:opacity-100 transition-opacity ml-2 shrink-0">
-                                                            <button onClick={() => addItemToCat(block.originalCat)} className="p-1.5 hover:bg-white/20 rounded-md text-white"><Icon name="plus" size={14}/></button>
-                                                            <button onClick={() => deleteCategory(block.originalCat)} className="p-1.5 hover:bg-red-500 rounded-md text-white"><Icon name="trash" size={14}/></button>
-                                                        </div>
+                            <div id="paper" className={activeTab === 'carton' ? 'carton-view-mode' : ''} style={{ width: current.orientation === 'portrait' ? '200mm' : '287mm', fontFamily: current.fontFamily }}>
+                                <div className={`grid gap-x-6 gap-y-10 items-start ${current.printCols === 1 ? 'grid-cols-1' : (current.printCols === 2 ? 'grid-cols-2' : 'grid-cols-3')}`}>
+                                    {splitBlocks.map((block) => {
+                                        const config = getColConfig(block.originalCat);
+                                        return (
+                                            <div key={block.id} className="group/box rounded-xl overflow-hidden bg-white relative break-inside-avoid shadow-sm border-2 border-slate-900">
+                                                <div style={{ backgroundColor: block.theme || '#1e293b' }} className="flex items-center justify-between px-3 py-2 no-print">
+                                                    <EditableTitle initialValue={block.title} onSave={(val) => renameCategory(block.originalCat, val)} style={{ fontSize: `${current.titleFontSize}px`, fontWeight: '900', color: 'white' }} className="flex-1" />
+                                                    <input type="color" value={block.theme || '#1e293b'} onChange={(e) => setCategoryColor(block.originalCat, e.target.value)} className="w-5 h-5 bg-transparent border-0 cursor-pointer p-0 shrink-0" />
+                                                    <div className="flex items-center gap-1 opacity-0 group-hover/box:opacity-100 transition-opacity ml-2 shrink-0">
+                                                        <button onClick={() => addItemToCat(block.originalCat)} className="p-1 hover:bg-white/20 rounded-md text-white"><Icon name="plus" size={14}/></button>
                                                     </div>
-                                                    <div style={{ backgroundColor: block.theme || '#1e293b', fontSize: `${current.titleFontSize}px` }} className={`hidden print:block text-white font-black px-4 py-2 border-b-2 border-slate-900 text-center leading-tight`}>
-                                                        {block.title}
-                                                    </div>
-                                                    <table className={`w-full border-collapse table-fixed`} style={{ fontSize: `${current.fontSize}px` }}>
-                                                        <thead className={`bg-slate-50 border-b-2 border-slate-900 text-slate-900 font-bold`}>
-                                                            <tr>
-                                                                <th className={`w-8 border-r border-slate-900 py-1.5 text-center font-black`}>V</th>
-                                                                {config.headers.map((h, i) => (
-                                                                    <th key={h} className={`${config.widths[i]} px-3 border-r border-slate-900 last:border-r-0 font-black text-left`}>{h}</th>
+                                                </div>
+                                                <div style={{ backgroundColor: block.theme || '#1e293b', fontSize: `${current.titleFontSize}px` }} className={`print-title-bar hidden print:block text-white font-black px-4 py-2 border-b-2 border-slate-900 text-center leading-tight`}>
+                                                    {block.title}
+                                                </div>
+                                                <table className="w-full border-collapse table-fixed" style={{ fontSize: `${current.fontSize}px` }}>
+                                                    <thead className="bg-slate-50 border-b-2 border-slate-900 text-slate-900 font-bold">
+                                                        <tr>
+                                                            <th className="w-8 border-r border-slate-900 py-1.5 text-center font-black">V</th>
+                                                            {config.headers.map((h, i) => (
+                                                                <th key={h} className={`${config.widths[i]} px-3 border-r border-slate-900 last:border-r-0 font-black text-left`}>{h}</th>
+                                                            ))}
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-slate-200">
+                                                        {block.items.map(item => (
+                                                            <tr key={item.id} className="hover:bg-indigo-50/50 group/row">
+                                                                <td className="border-r border-slate-200 text-center py-2"><input type="checkbox" checked={item.checked} onChange={() => toggleCheck(item.id)} className="custom-checkbox mx-auto" /></td>
+                                                                {config.keys.map((key, i) => (
+                                                                    <td key={key} className={`px-3 border-r border-slate-200 last:border-r-0 ${i === 0 ? 'font-bold text-slate-900' : 'text-slate-600'}`}>
+                                                                        <div className="flex items-center gap-2">
+                                                                            <input value={item[key] || ""} onChange={e => editItem(item.id, key, e.target.value)} className="w-full bg-transparent focus:bg-white py-1 rounded" style={{ fontSize: 'inherit' }} />
+                                                                            {key === 'name' && activeTab === 'carton' && (
+                                                                                <button onClick={() => openLabelMaker(item)} className="no-print text-indigo-500 hover:scale-125 transition-all p-1 shrink-0"><Icon name="printer" size={14} /></button>
+                                                                            )}
+                                                                            {i === config.keys.length - 1 && (
+                                                                                <button onClick={() => deleteItem(item.id)} className="no-print text-slate-300 hover:text-red-500 opacity-0 group-hover/row:opacity-100 transition-opacity shrink-0"><Icon name="x" size={14}/></button>
+                                                                            )}
+                                                                        </div>
+                                                                    </td>
                                                                 ))}
                                                             </tr>
-                                                        </thead>
-                                                        <tbody className={`divide-y divide-slate-200`}>
-                                                            {block.items.map(item => (
-                                                                <tr key={item.id} className={`hover:bg-indigo-50/30 transition-colors group/row ${item.checked ? 'bg-indigo-50/50' : ''}`}>
-                                                                    <td className={`border-r border-slate-200 text-center py-2`}><input type="checkbox" checked={item.checked} onChange={() => toggleCheck(item.id)} className="custom-checkbox mx-auto" /></td>
-                                                                    {config.keys.map((key, i) => (
-                                                                        <td key={key} className={`px-3 border-r border-slate-200 last:border-r-0 ${i === 0 ? 'font-bold text-slate-900' : 'text-slate-600'}`}>
-                                                                            <div className="flex items-center gap-2">
-                                                                                <input value={item[key] || ""} onChange={e => editItem(item.id, key, e.target.value)} className="w-full bg-transparent focus:bg-white py-1 rounded" style={{ fontSize: 'inherit' }} />
-                                                                                {key === 'name' && (activeTab === 'carton') && (
-                                                                                    <button onClick={() => openLabelMaker(item)} className="no-print text-indigo-500 hover:scale-125 transition-transform p-1 flex-shrink-0" title="라벨 편집 및 인쇄"><Icon name="printer" size={14} /></button>
-                                                                                )}
-                                                                                {i === config.keys.length - 1 && (
-                                                                                    <button onClick={() => deleteItem(item.id)} className="no-print text-slate-300 hover:text-red-500 opacity-0 group-hover/row:opacity-100 transition-opacity flex-shrink-0"><Icon name="x" size={14}/></button>
-                                                                                )}
-                                                                            </div>
-                                                                        </td>
-                                                                    ))}
-                                                                </tr>
-                                                            ))}
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             </div>
                         ) : (
-                            <div className="flex flex-col items-center pb-20 animate-in fade-in zoom-in-95 duration-300">
-                                <div className="no-print bg-white p-8 rounded-3xl shadow-2xl border border-slate-200 mb-10 w-full max-w-6xl">
-                                    <div className="grid grid-cols-1 lg:grid-cols-4 gap-10">
-                                        <div className="lg:col-span-1 space-y-6">
-                                            <div className="border-b border-slate-100 pb-2"><h4 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><Icon name="edit-2" size={14}/> 콘텐츠 편집</h4></div>
-                                            <div className="space-y-4">
-                                                <div className="flex bg-slate-100 p-1 rounded-xl">
-                                                    <button onClick={() => setLabelModal({...labelModal, isSingleZone: false})} className={`flex-1 py-2 text-[11px] font-black rounded-lg transition-all ${!labelModal.isSingleZone ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-50'}`}>일반</button>
-                                                    <button onClick={() => setLabelModal({...labelModal, isSingleZone: true})} className={`flex-1 py-2 text-[11px] font-black rounded-lg transition-all ${labelModal.isSingleZone ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-50'}`}>단일</button>
-                                                </div>
-                                                <div className="space-y-2"><label className="text-[10px] font-bold text-slate-400">라벨명</label><textarea value={labelModal.mainText} onChange={e => setLabelModal({...labelModal, mainText: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold text-lg h-32 resize-none outline-none focus:ring-2 focus:ring-indigo-200 transition-all" /></div>
-                                                {!labelModal.isSingleZone && <div className="space-y-2"><label className="text-[10px] font-bold text-slate-400">하단 문구</label><input value={labelModal.footerText} onChange={e => setLabelModal({...labelModal, footerText: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold outline-none" /></div>}
-                                            </div>
+                            <div className="flex flex-col lg:flex-row gap-8 w-full max-w-[1800px] mx-auto pt-6 px-4 items-start">
+                                {/* 왼쪽: 실시간 미리보기 */}
+                                <div className="flex-1 w-full flex justify-center bg-slate-200/50 p-6 rounded-3xl shadow-inner min-h-[600px]">
+                                    <div className="label-print-area bg-white shadow-2xl overflow-hidden self-start" style={{ width: '280mm', height: '190mm', fontFamily: labelModal.fontFamily, zoom: '0.7' }}>
+                                        <div style={{ backgroundColor: labelModal.bgTop, color: labelModal.colorTop, height: labelModal.isSingleZone ? '100%' : '72%' }} className="flex flex-col justify-center items-center p-12 text-center transition-all duration-300">
+                                            <div style={{ fontSize: `${labelModal.mainSize}px`, fontWeight: '900', letterSpacing: '-0.04em', lineHeight: '1.1', whiteSpace: 'pre-wrap' }}>{labelModal.mainText}</div>
                                         </div>
-                                        <div className="lg:col-span-2 space-y-6">
-                                            <div className="border-b border-slate-100 pb-2"><h4 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><Icon name="palette" size={14}/> 스타일</h4></div>
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                                <DualColorPicker label="상단 배경" colorKey="bgTop" currentColor={labelModal.bgTop} onColorSelect={(k, v) => setLabelModal({...labelModal, [k]: v})} />
-                                                <DualColorPicker label="상단 글자" colorKey="colorTop" currentColor={labelModal.colorTop} onColorSelect={(k, v) => setLabelModal({...labelModal, [k]: v})} />
-                                                {!labelModal.isSingleZone && <><DualColorPicker label="하단 배경" colorKey="bgBottom" currentColor={labelModal.bgBottom} onColorSelect={(k, v) => setLabelModal({...labelModal, [k]: v})} /><DualColorPicker label="하단 글자" colorKey="colorBottom" currentColor={labelModal.colorBottom} onColorSelect={(k, v) => setLabelModal({...labelModal, [k]: v})} /></>}
-                                            </div>
-                                        </div>
-                                        <div className="lg:col-span-1 space-y-6">
-                                            <div className="border-b border-slate-100 pb-2"><h4 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><Icon name="maximize" size={14}/> 크기</h4></div>
-                                            <div className="space-y-12 py-4">
-                                                <div className="space-y-3"><div className="flex justify-between text-[11px] font-black text-slate-600"><span>제품명</span><span>{labelModal.mainSize}px</span></div><input type="range" min="40" max="600" value={labelModal.mainSize} onChange={e => setLabelModal({...labelModal, mainSize: parseInt(e.target.value)})} className="w-full accent-indigo-600 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer" /></div>
-                                                {!labelModal.isSingleZone && <div className="space-y-3"><div className="flex justify-between text-[11px] font-black text-slate-600"><span>하단</span><span>{labelModal.footerSize}px</span></div><input type="range" min="20" max="400" value={labelModal.footerSize} onChange={e => setLabelModal({...labelModal, footerSize: parseInt(e.target.value)})} className="w-full accent-indigo-600 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer" /></div>}
-                                            </div>
-                                        </div>
+                                        {!labelModal.isSingleZone && <div style={{ backgroundColor: labelModal.bgBottom, color: labelModal.colorBottom, height: '28%' }} className="flex justify-center items-center transition-all duration-300"><div style={{ fontSize: `${labelModal.footerSize}px`, fontWeight: '900', letterSpacing: '-0.02em' }}>{labelModal.footerText}</div></div>}
                                     </div>
                                 </div>
-                                <div className="label-print-area bg-white shadow-2xl overflow-hidden" style={{ width: '280mm', height: '190mm', fontFamily: labelModal.fontFamily }}>
-                                    <div style={{ backgroundColor: labelModal.bgTop, color: labelModal.colorTop, height: labelModal.isSingleZone ? '100%' : '72%' }} className="flex flex-col justify-center items-center p-12 text-center transition-all duration-300">
-                                        <div style={{ fontSize: `${labelModal.mainSize}px`, fontWeight: '900', letterSpacing: '-0.04em', lineHeight: '1.1', whiteSpace: 'pre-wrap' }}>{labelModal.mainText}</div>
+
+                                {/* 오른쪽: 설정 사이드바 (확실한 오른쪽 배치) */}
+                                <div className="w-full lg:w-[480px] shrink-0 space-y-6 no-print editor-sidebar pr-2">
+                                    <div className="bg-white p-5 rounded-3xl shadow-lg border border-slate-200 space-y-4">
+                                        <div className="flex items-center gap-2 font-black text-slate-800 text-sm border-b pb-3"><Icon name="maximize" size={16} /> 에디터 모드</div>
+                                        <div className="flex bg-slate-100 p-1 rounded-xl">
+                                            <button onClick={() => setLabelModal({...labelModal, isSingleZone: false})} className={`flex-1 py-2.5 text-[11px] font-black rounded-lg transition-all ${!labelModal.isSingleZone ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500'}`}>일반 (2단)</button>
+                                            <button onClick={() => setLabelModal({...labelModal, isSingleZone: true})} className={`flex-1 py-2.5 text-[11px] font-black rounded-lg transition-all ${labelModal.isSingleZone ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-50'}`}>단일 (1단)</button>
+                                        </div>
                                     </div>
-                                    {!labelModal.isSingleZone && <div style={{ backgroundColor: labelModal.bgBottom, color: labelModal.colorBottom, height: '28%' }} className="flex justify-center items-center transition-all duration-300"><div style={{ fontSize: `${labelModal.footerSize}px`, fontWeight: '900', letterSpacing: '-0.02em' }}>{labelModal.footerText}</div></div>}
+
+                                    <div className="bg-white p-5 rounded-3xl shadow-lg border border-slate-200 space-y-4">
+                                        <div className="flex items-center gap-2 font-black text-slate-800 text-sm border-b pb-3"><Icon name="edit-3" size={16} /> 콘텐츠 편집</div>
+                                        <div className="space-y-3">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">라벨명 (메인)</label>
+                                            <textarea value={labelModal.mainText} onChange={e => setLabelModal({...labelModal, mainText: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 h-32 font-bold focus:ring-4 focus:ring-indigo-100 transition-all outline-none" />
+                                            {!labelModal.isSingleZone && (
+                                                <>
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mt-2">하단 문구</label>
+                                                    <input value={labelModal.footerText} onChange={e => setLabelModal({...labelModal, footerText: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 font-bold outline-none" />
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-white p-5 rounded-3xl shadow-lg border border-slate-200 space-y-4">
+                                        <div className="flex items-center gap-2 font-black text-slate-800 text-sm border-b pb-3"><Icon name="palette" size={16} /> 색상 및 글꼴</div>
+                                        <div className="space-y-3">
+                                            <DualColorPicker label="메인 배경색" colorKey="bgTop" currentColor={labelModal.bgTop} onColorSelect={(k,v) => setLabelModal({...labelModal, [k]:v})} />
+                                            <DualColorPicker label="메인 글자색" colorKey="colorTop" currentColor={labelModal.colorTop} onColorSelect={(k,v) => setLabelModal({...labelModal, [k]:v})} />
+                                            {!labelModal.isSingleZone && (
+                                                <DualColorPicker label="하단 배경색" colorKey="bgBottom" currentColor={labelModal.bgBottom} onColorSelect={(k,v) => setLabelModal({...labelModal, [k]:v})} />
+                                            )}
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mt-2">글꼴 선택</label>
+                                            <select value={labelModal.fontFamily} onChange={e => setLabelModal({...labelModal, fontFamily: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 font-bold text-sm">
+                                                <option value="'Noto Sans KR', sans-serif">본고딕 (Noto Sans)</option>
+                                                <option value="'Nanum Gothic', sans-serif">나눔고딕</option>
+                                                <option value="'Black Han Sans', sans-serif">검은고딕 (Black Han)</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-white p-5 rounded-3xl shadow-lg border border-slate-200 space-y-6 pb-10">
+                                        <div className="flex items-center gap-2 font-black text-slate-800 text-sm border-b pb-3"><Icon name="maximize" size={16} /> 폰트 크기 조절</div>
+                                        <div className="space-y-5">
+                                            <div className="space-y-2">
+                                                <div className="flex justify-between text-[11px] font-black uppercase"><span>라벨명 크기</span><span className="text-indigo-600">{labelModal.mainSize}px</span></div>
+                                                <input type="range" min="40" max="600" value={labelModal.mainSize} onChange={e => setLabelModal({...labelModal, mainSize: parseInt(e.target.value)})} className="w-full accent-indigo-600 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer" />
+                                            </div>
+                                            {!labelModal.isSingleZone && (
+                                                <div className="space-y-2">
+                                                    <div className="flex justify-between text-[11px] font-black uppercase"><span>하단 문구 크기</span><span className="text-indigo-600">{labelModal.footerSize}px</span></div>
+                                                    <input type="range" min="20" max="400" value={labelModal.footerSize} onChange={e => setLabelModal({...labelModal, footerSize: parseInt(e.target.value)})} className="w-full accent-indigo-600 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer" />
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         )}
                     </main>
-
-                    {importModal && (
-                        <div className="fixed inset-0 z-[100] bg-slate-900/70 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
-                            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden border border-white/20">
-                                <div className="p-6 bg-slate-50 border-b flex justify-between items-center">
-                                    <div className="flex items-center gap-3"><div className="bg-green-100 text-green-600 p-2 rounded-lg"><Icon name="sheet" /></div><div><h2 className="text-xl font-black text-slate-900 leading-tight">데이터 관리</h2><p className="text-xs text-slate-500 font-bold mt-0.5">구글 시트 연동 및 직접 데이터 추가</p></div></div>
-                                    <button onClick={() => setImportModal(false)} className="p-2 hover:bg-slate-200 rounded-full text-slate-400 transition-colors"><Icon name="x" /></button>
-                                </div>
-                                <div className="p-8 space-y-6">
-                                    <div className="bg-green-50 border border-green-100 rounded-2xl p-5">
-                                        <h4 className="text-[11px] font-black text-green-700 uppercase mb-3 flex items-center gap-1.5"><Icon name="refresh" size={12}/> 구글 시트 주소 연동</h4>
-                                        <div className="flex gap-2"><input value={sheetUrlInput} onChange={e => setSheetUrlInput(e.target.value)} className="flex-1 bg-white border border-green-200 rounded-xl px-4 py-3 text-sm focus:ring-4 focus:ring-green-500/10 outline-none" placeholder="시트 주소 입력..." /><button onClick={() => { syncWithGoogleSheet(sheetUrlInput); }} className="bg-green-600 hover:bg-green-700 text-white font-black px-6 py-3 rounded-xl shadow-lg transition-all">연동</button></div>
-                                    </div>
-                                    <div className="relative"><div className="absolute inset-0 flex items-center"><span className="w-full border-t border-slate-100"></span></div><div className="relative flex justify-center text-[10px] font-black uppercase text-slate-300 bg-white px-2">직접 붙여넣기</div></div>
-                                    <div className="space-y-4">
-                                        <textarea value={importText} onChange={e => setImportText(e.target.value)} className="w-full h-40 bg-slate-50 border-2 border-slate-200 rounded-2xl p-5 text-sm font-mono focus:border-indigo-500 outline-none transition-all" placeholder="데이터를 붙여넣으세요..." />
-                                        <button onClick={handleImport} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4 rounded-2xl shadow-lg flex items-center justify-center gap-2 transition-all"><Icon name="check" size={18} /> 데이터 가져오기</button>
-                                    </div>
-                                </div>
-                                <div className="p-6 bg-slate-50"><button onClick={() => setImportModal(false)} className="w-full bg-white border border-slate-200 text-slate-600 font-bold py-4 rounded-2xl hover:bg-slate-100 transition-all">닫기</button></div>
-                            </div>
-                        </div>
-                    )}
                 </div>
             );
         };
