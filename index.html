@@ -18,7 +18,7 @@
             overflow: hidden; 
         }
         
-        /* 화면에서 실제 A4 용지처럼 보여주는 레이아웃 */
+        /* 화면 미리보기용 A4 컨테이너 */
         .a4-paper-container {
             background: white;
             box-shadow: 0 40px 80px rgba(0, 0, 0, 0.3);
@@ -28,24 +28,23 @@
             position: relative;
             width: 297mm;
             min-height: 210mm;
-            padding: 12mm;
-            transition: all 0.3s ease;
+            padding: 15mm; 
+            transition: all 0.2s ease;
             transform-origin: top center;
         }
 
-        /* 🚨 인쇄 설정: 다중 페이지 출력 및 잘림 방지 (완벽 보강) 🚨 */
+        /* 🚨 인쇄 설정: 여백 제거 및 자동 페이징 보강 🚨 */
         @media print {
             @page { 
                 size: A4 landscape; 
-                margin: 0; 
+                margin: 0 !important; /* 모든 여백 제거 */
             }
             .no-print { display: none !important; }
             
-            /* 모든 부모 요소의 높이 제한과 숨김 처리를 완전히 제거 */
             html, body { 
                 background: white !important; 
                 height: auto !important; 
-                min-height: auto !important;
+                min-height: 0 !important;
                 overflow: visible !important; 
                 margin: 0 !important; 
                 padding: 0 !important; 
@@ -61,8 +60,8 @@
                 height: auto !important;
                 overflow: visible !important;
                 display: block !important;
-                background: transparent !important;
                 padding: 0 !important;
+                margin: 0 !important;
             }
 
             .a4-paper-container { 
@@ -70,39 +69,27 @@
                 border: none !important; 
                 width: 297mm !important; 
                 height: auto !important; 
-                min-height: auto !important;
+                min-height: 0 !important;
                 margin: 0 !important; 
-                padding: 15mm !important; /* 인쇄 시 안전 여백 */
+                padding: 15mm !important; /* 내부 여백 유지 */
                 display: block !important;
                 position: relative !important;
                 overflow: visible !important;
             }
             
-            /* 박스가 페이지 경계에서 잘리지 않도록 함 */
+            /* 박스 쪼개짐 방지 핵심 설정 */
             .group\/box {
                 break-inside: avoid-page !important;
                 page-break-inside: avoid !important;
                 margin-bottom: 10mm !important;
                 display: block !important;
+                border: 2px solid #000 !important;
             }
             
-            /* 테이블 인쇄 보정 */
-            table { 
-                page-break-inside: auto !important;
-            }
-            tr { 
-                page-break-inside: avoid !important; 
-                page-break-after: auto !important; 
-            }
+            table { page-break-inside: auto !important; }
+            tr { page-break-inside: avoid !important; page-break-after: auto !important; }
             
-            /* 카톤박스 전용 인쇄 스타일 */
-            .carton-view-mode .group\/box { border-width: 1px !important; border-color: #e2e8f0 !important; }
-            .carton-view-mode table, .carton-view-mode th, .carton-view-mode td, .carton-view-mode tr {
-                border: none !important;
-                background-color: transparent !important;
-            }
-            .carton-view-mode thead { display: none !important; }
-            
+            /* 배경색 인쇄 강제 */
             * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         }
 
@@ -150,7 +137,6 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef, useCallback } = React;
 
-        // 30가지 단색 팔레트 (연동 실패 해결을 위한 상수 통일)
         const PRESET_COLORS = [
             "#3B82F6", "#EF4444", "#F97316", "#F59E0B", "#22C55E", 
             "#6366F1", "#A855F7", "#EC4899", "#06B6D4", "#1e40af",
@@ -189,8 +175,6 @@
                 themes: { "생산라벨": "#EF4444" }, order: ["생산라벨"]
             }
         };
-
-        // --- 컴포넌트 선언 ---
 
         const EditableTitle = ({ initialValue, onSave, className = "", style = {} }) => {
             const [val, setVal] = useState(initialValue);
@@ -251,7 +235,7 @@
 
         const App = () => {
             const [tabData, setTabData] = useState(() => {
-                const saved = localStorage.getItem('cellina_inventory_final_v48');
+                const saved = localStorage.getItem('cellina_inventory_final_v50');
                 return saved ? JSON.parse(saved) : INITIAL_DATA;
             });
             const [scriptUrl, setScriptUrl] = useState(() => localStorage.getItem('cellina_script_url') || DEFAULT_SCRIPT_URL);
@@ -266,7 +250,7 @@
             const tabNameMapping = { 'sample': '샘플목록', 'carton': '카톤박스' };
 
             useEffect(() => {
-                localStorage.setItem('cellina_inventory_final_v48', JSON.stringify(tabData));
+                localStorage.setItem('cellina_inventory_final_v50', JSON.stringify(tabData));
                 localStorage.setItem('cellina_script_url', scriptUrl.trim());
                 localStorage.setItem('cellina_sheet_url', sheetUrl.trim());
             }, [tabData, scriptUrl, sheetUrl]);
@@ -445,9 +429,9 @@
 
                         {isConfigOpen && (
                             <div className="absolute top-16 right-6 bg-slate-800 border border-slate-700 p-5 rounded-2xl w-[400px] shadow-2xl animate-pop no-print">
-                                <label className="text-[10px] font-bold text-slate-500 block mb-1">앱스 스크립트 URL</label>
+                                <label className="text-[10px] font-bold text-slate-500 block mb-1">API URL</label>
                                 <input value={scriptUrl} onChange={e=>setScriptUrl(e.target.value)} className="w-full bg-slate-900 rounded p-2 text-[10px] text-indigo-300 font-mono mb-4 outline-none border border-white/5" />
-                                <label className="text-[10px] font-bold text-slate-500 block mb-1">구글 시트 주소</label>
+                                <label className="text-[10px] font-bold text-slate-500 block mb-1">구글 시트 URL</label>
                                 <input value={sheetUrl} onChange={e=>setSheetUrl(e.target.value)} className="w-full bg-slate-900 rounded p-2 text-[10px] text-slate-400 font-mono mb-6 outline-none" />
                                 <button onClick={()=>setIsConfigOpen(false)} className="w-full bg-indigo-600 py-3 rounded-xl font-bold text-xs text-white">설정 저장 후 닫기</button>
                             </div>
