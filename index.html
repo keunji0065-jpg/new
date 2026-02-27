@@ -15,49 +15,65 @@
             font-family: 'Noto Sans KR', sans-serif; 
             background-color: #cbd5e1; 
             margin: 0; padding: 0; color: #1e293b;
-            overflow: hidden; 
+            overflow: hidden; /* 화면에서는 사이드바 대신 메인 영역 스크롤 사용 */
         }
         
-        /* 실제 A4 가로 규격과 동일하게 설정 (화면 미리보기용) */
+        /* 화면에서 실제 A4 용지처럼 보여주는 레이아웃 */
         .a4-paper-container {
             background: white;
-            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 40px 80px rgba(0, 0, 0, 0.3);
             flex-shrink: 0;
             box-sizing: border-box;
             margin: 40px auto;
             position: relative;
+            /* 가로형 A4 표준 규격 */
             width: 297mm;
             min-height: 210mm;
-            padding: 15mm; 
+            padding: 12mm;
             transition: all 0.3s ease;
             transform-origin: top center;
         }
 
-        /* 인쇄 설정 */
+        /* 🚨 인쇄 설정: 다중 페이지 출력 및 잘림 방지 🚨 */
         @media print {
             @page { 
                 size: A4 landscape; 
                 margin: 0; 
             }
             .no-print { display: none !important; }
-            body { background: white !important; padding: 0 !important; margin: 0 !important; overflow: visible; }
             
-            main {
-                background: transparent !important;
-                padding: 0 !important;
-                display: block !important;
+            /* 모든 부모 요소의 높이 제한 해제 및 스크롤 제거 */
+            html, body { 
+                background: white !important; 
+                height: auto !important; 
+                overflow: visible !important; 
+                margin: 0 !important; 
+                padding: 0 !important; 
+            }
+            
+            #root, main {
+                height: auto !important;
                 overflow: visible !important;
+                display: block !important;
             }
 
             .a4-paper-container { 
                 box-shadow: none !important; 
                 border: none !important; 
                 width: 297mm !important; 
-                min-height: 210mm !important;
+                height: auto !important; /* 고정 높이 해제 */
+                min-height: auto !important;
                 margin: 0 !important; 
-                padding: 15mm !important;
+                padding: 15mm !important; /* 인쇄용 여백 */
                 display: block !important;
-                page-break-after: always;
+                position: relative !important;
+            }
+            
+            /* 박스가 페이지 중간에 걸리지 않도록 함 */
+            .group\/box {
+                break-inside: avoid !important;
+                page-break-inside: avoid !important;
+                margin-bottom: 10mm !important;
             }
             
             /* 카톤박스 전용 인쇄 스타일 */
@@ -70,7 +86,6 @@
                 background-color: transparent !important;
             }
             .carton-view-mode thead { display: none !important; }
-            .carton-view-mode .box-header-title { border: none !important; }
             
             * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         }
@@ -83,7 +98,7 @@
         .tab-inactive { background: #0f172a; color: #64748b; }
         .tab-active { background: #ffffff; color: #4f46e5; border: 1px solid #e2e8f0; border-bottom: 2px solid white; }
 
-        /* 텍스트 왼쪽 정렬 (전역 적용) */
+        /* 텍스트 왼쪽 정렬 및 수직 중앙 정렬 */
         .cell-textarea {
             width: 100%;
             background: transparent;
@@ -92,11 +107,11 @@
             resize: none;
             overflow: hidden;
             line-height: 1.4;
-            padding: 10px 12px; /* 가독성을 위한 좌우 여백 */
+            padding: 8px 12px;
             display: block;
             white-space: pre-wrap;
             word-break: break-all;
-            text-align: left; /* 요청대로 왼쪽 정렬 */
+            text-align: left; 
             vertical-align: middle;
         }
 
@@ -105,9 +120,7 @@
         
         .no-scrollbar::-webkit-scrollbar { display: none; }
         
-        td.v-middle {
-            vertical-align: middle !important;
-        }
+        td.v-middle { vertical-align: middle !important; }
 
         .color-dot-sm {
             width: 22px; height: 22px;
@@ -115,7 +128,7 @@
             border: 1px solid rgba(0,0,0,0.15);
             transition: all 0.2s;
         }
-        .color-dot-sm:hover { transform: scale(1.15); z-index: 10; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        .color-dot-sm:hover { transform: scale(1.15); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
     </style>
 </head>
 <body>
@@ -124,7 +137,7 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef, useCallback } = React;
 
-        // 30가지 직관적 단색 팔레트
+        // 30가지 단색 팔레트
         const PRESET_COLORS = [
             "#000000", "#374151", "#6B7280", "#9CA3AF", "#D1D5DB", "#FFFFFF",
             "#EF4444", "#B91C1C", "#F97316", "#EA580C", "#F59E0B", "#D97706",
@@ -142,11 +155,11 @@
             'x': <><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>,
             'save': <><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></>,
             'refresh': <><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></>,
-            'settings': <><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1-2 2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></>,
+            'settings': <><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></>,
             'palette': <><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></>
         };
 
-        const DEFAULT_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz9pQkbe9ArMid7mmlnFiQRtFf8o-CYxJT9hUXc5vz7ayZg5GuNOmRr5tW8aqBWXl2w/exec";
+        const DEFAULT_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyE_S_2HKvPX6R3lRLZ_z6bI-RLxgX3E4D3oZziAEBHRcqRUWGXakX2NeMcRgl4VZbk/exec";
         const DEFAULT_SHEET_URL = "https://docs.google.com/spreadsheets/d/1bC9nm1nAUjHV1L3-B5o8wUO1VpvjFXElN4CPquxZBgU/edit?usp=sharing";
 
         const INITIAL_DATA = {
@@ -196,17 +209,15 @@
             <div className="space-y-3 p-4 bg-white border border-slate-200 rounded-2xl shadow-sm">
                 <div className="flex justify-between items-center mb-1">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</label>
-                    <div className="flex items-center gap-2">
-                        <div className="relative group">
-                            <input 
-                                type="color" 
-                                value={currentColor} 
-                                onChange={e => onColorSelect(colorKey, e.target.value)} 
-                                className="w-6 h-6 p-0 border-0 cursor-pointer bg-transparent opacity-0 absolute inset-0 z-10" 
-                            />
-                            <div className="w-6 h-6 rounded-full border border-slate-300 flex items-center justify-center bg-slate-50 group-hover:bg-white transition-all shadow-sm">
-                                <Icon name="palette" size={12} className="text-indigo-500" />
-                            </div>
+                    <div className="relative group">
+                        <input 
+                            type="color" 
+                            value={currentColor} 
+                            onChange={e => onColorSelect(colorKey, e.target.value)} 
+                            className="w-6 h-6 p-0 border-0 cursor-pointer bg-transparent opacity-0 absolute inset-0 z-10" 
+                        />
+                        <div className="w-6 h-6 rounded-full border border-slate-300 flex items-center justify-center bg-slate-50 group-hover:bg-white transition-all shadow-sm">
+                            <Icon name="palette" size={12} className="text-indigo-500" />
                         </div>
                     </div>
                 </div>
@@ -223,14 +234,19 @@
             </div>
         );
 
-        // --- 메인 App 컴포넌트 ---
-
         const App = () => {
             const [tabData, setTabData] = useState(() => {
-                const saved = localStorage.getItem('cellina_inventory_final_v41');
+                const saved = localStorage.getItem('cellina_inventory_final_v45');
                 return saved ? JSON.parse(saved) : INITIAL_DATA;
             });
-            const [scriptUrl, setScriptUrl] = useState(() => localStorage.getItem('cellina_script_url') || DEFAULT_SCRIPT_URL);
+            const [scriptUrl, setScriptUrl] = useState(() => {
+                const saved = localStorage.getItem('cellina_script_url');
+                // 새로운 스크립트 주소로 강제 업데이트
+                if (!saved || !saved.includes('AKfycbyE_S_2HKvPX6R3lRLZ_z6bI-RLxgX3E4D3oZziAEBHRcqRUWGXakX2NeMcRgl4VZbk')) {
+                    return DEFAULT_SCRIPT_URL;
+                }
+                return saved;
+            });
             const [sheetUrl, setSheetUrl] = useState(() => localStorage.getItem('cellina_sheet_url') || DEFAULT_SHEET_URL);
 
             const [activeTab, setActiveTab] = useState("sample");
@@ -242,7 +258,7 @@
             const tabNameMapping = { 'sample': '샘플목록', 'carton': '카톤박스' };
 
             useEffect(() => {
-                localStorage.setItem('cellina_inventory_final_v41', JSON.stringify(tabData));
+                localStorage.setItem('cellina_inventory_final_v45', JSON.stringify(tabData));
                 localStorage.setItem('cellina_script_url', scriptUrl.trim());
                 localStorage.setItem('cellina_sheet_url', sheetUrl.trim());
             }, [tabData, scriptUrl, sheetUrl]);
@@ -280,29 +296,13 @@
             };
 
             const addNewCategory = () => {
-                const newCatName = prompt("새로운 분류명을 입력하세요. (박스 제목이 됩니다)");
+                const newCatName = prompt("새로운 분류명을 입력하세요.");
                 if (!newCatName || current.order.includes(newCatName)) return;
                 const nextOrder = [newCatName, ...current.order];
                 const nextThemes = { ...current.themes };
                 nextThemes[newCatName] = DISTINCT_VIVID_COLORS[nextOrder.length % DISTINCT_VIVID_COLORS.length];
                 const newItem = { id: Date.now(), cat: newCatName, name: "", origin: "", vendor: "", checked: false };
                 updateCurrentData({ items: [newItem, ...current.items], order: nextOrder, themes: nextThemes });
-            };
-
-            const openLabelMaker = (item) => {
-                const isSingle = item.cat === '박스라벨';
-                const footerTextVal = activeTab === 'carton' ? item.vendor : `${item.origin} / ${item.vendor}`;
-                const config = item.labelSettings || {
-                    mainText: item.name, footerText: isSingle ? "" : footerTextVal,
-                    bgTop: "#EF4444", bgBottom: "#FFFFFF", colorTop: "#FFFFFF", colorBottom: "#000000",
-                    fontFamily: "'Noto Sans KR', sans-serif", mainSize: 140, footerSize: 90, isSingleZone: isSingle
-                };
-                setLabelModal({ ...config, itemId: item.id });
-            };
-
-            const saveLabelSettings = () => {
-                updateCurrentData({ items: current.items.map(i => i.id === labelModal.itemId ? { ...i, name: labelModal.mainText, labelSettings: { ...labelModal } } : i) });
-                setLabelModal(null);
             };
 
             const fetchDataFromSheet = async () => {
@@ -315,7 +315,7 @@
                     const fetchUrl = `${cScript}?action=read&tab=${encodeURIComponent(sTab)}&sheetUrl=${encodeURIComponent(cSheet)}&t=${Date.now()}`;
                     const res = await fetch(fetchUrl);
                     const text = await res.text();
-                    if (text.trim().startsWith("<!DOCTYPE")) throw new Error("구글 스크립트 권한 설정(모든 사용자)이 필요합니다.");
+                    if (text.trim().startsWith("<!DOCTYPE")) throw new Error("권한 오류: 스크립트 배포 시 액세스 권한을 '모든 사용자'로 설정하세요.");
                     const data = JSON.parse(text);
                     if (data && Array.isArray(data)) {
                         const dataRows = data.slice(1);
@@ -349,6 +349,22 @@
                     await fetch(cScript, { method: "POST", body: JSON.stringify(payload) });
                     alert(`✅ [${sTab}] 저장 완료!`);
                 } catch (err) { alert("⚠️ 저장 실패: " + err.message); }
+            };
+
+            const openLabelMaker = (item) => {
+                const isSingle = item.cat === '박스라벨';
+                const footerTextVal = activeTab === 'carton' ? item.vendor : `${item.origin} / ${item.vendor}`;
+                const config = item.labelSettings || {
+                    mainText: item.name, footerText: isSingle ? "" : footerTextVal,
+                    bgTop: "#EF4444", bgBottom: "#FFFFFF", colorTop: "#FFFFFF", colorBottom: "#000000",
+                    fontFamily: "'Noto Sans KR', sans-serif", mainSize: 140, footerSize: 90, isSingleZone: isSingle
+                };
+                setLabelModal({ ...config, itemId: item.id });
+            };
+
+            const saveLabelSettings = () => {
+                updateCurrentData({ items: current.items.map(i => i.id === labelModal.itemId ? { ...i, name: labelModal.mainText, labelSettings: { ...labelModal } } : i) });
+                setLabelModal(null);
             };
 
             const groupedBlocks = useMemo(() => {
@@ -386,31 +402,31 @@
                                 {!labelModal ? (
                                     <>
                                         <div className="flex bg-slate-800 rounded-lg p-1 gap-3 items-center px-4 border border-slate-700">
-                                            <div className="flex items-center gap-2" title="제목 크기">
-                                                <span className="text-[9px] font-bold text-slate-500">T</span>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-[9px] font-bold text-slate-500">TIT</span>
                                                 <input type="range" min="10" max="35" value={current.titleFontSize} onChange={e => updateCurrentData({ titleFontSize: parseInt(e.target.value) })} className="w-16 h-1 accent-indigo-500" />
                                             </div>
-                                            <div className="flex items-center gap-2" title="내용 크기">
-                                                <span className="text-[9px] font-bold text-slate-500">C</span>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-[9px] font-bold text-slate-500">TXT</span>
                                                 <input type="range" min="8" max="25" value={current.fontSize} onChange={e => updateCurrentData({ fontSize: parseInt(e.target.value) })} className="w-16 h-1 accent-emerald-500" />
                                             </div>
                                         </div>
-                                        <button onClick={fetchDataFromSheet} className="bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded-lg font-bold text-[11px] flex items-center gap-2">
-                                            <Icon name="refresh" size={12} className={isFetching ? "animate-spin" : ""} /> 갱신
+                                        <button onClick={fetchDataFromSheet} className="bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded-lg font-bold text-[11px] flex items-center gap-2 transition-all">
+                                            <Icon name="refresh" size={12} className={isFetching ? "animate-spin text-indigo-400" : ""} /> 갱신
                                         </button>
                                         <button onClick={pushToGoogleSheet} className="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded-lg font-bold text-[11px] flex items-center gap-2">
                                             <Icon name="save" size={12} /> 저장
                                         </button>
-                                        <button onClick={() => window.print()} className="bg-white text-slate-900 px-4 py-2 rounded-lg font-black text-[11px] flex items-center gap-2">
+                                        <button onClick={() => window.print()} className="bg-white text-slate-900 px-4 py-2 rounded-lg font-black text-[11px] flex items-center gap-2 hover:bg-slate-100">
                                             <Icon name="printer" size={12} /> 인쇄
                                         </button>
                                         <button onClick={() => setIsConfigOpen(!isConfigOpen)} className="p-2 text-slate-400 hover:text-white transition-colors"><Icon name="settings" /></button>
                                     </>
                                 ) : (
                                     <>
-                                        <button onClick={saveLabelSettings} className="px-6 py-2 rounded-xl font-black bg-blue-600 hover:bg-blue-500 text-xs">설정 저장</button>
-                                        <button onClick={() => window.print()} className="bg-indigo-600 px-6 py-2 rounded-xl font-black text-xs">라벨 인쇄</button>
-                                        <button onClick={() => setLabelModal(null)} className="bg-slate-700 px-4 py-2 rounded-xl font-bold text-xs">복귀</button>
+                                        <button onClick={saveLabelSettings} className="px-6 py-2 rounded-xl font-black bg-blue-600 hover:bg-blue-500 text-xs text-white">설정 저장</button>
+                                        <button onClick={() => window.print()} className="bg-indigo-600 px-6 py-2 rounded-xl font-black text-xs text-white">라벨 인쇄</button>
+                                        <button onClick={() => setLabelModal(null)} className="bg-slate-700 px-4 py-2 rounded-xl font-bold text-xs text-white">복귀</button>
                                     </>
                                 )}
                             </div>
@@ -418,11 +434,11 @@
 
                         {isConfigOpen && (
                             <div className="absolute top-16 right-6 bg-slate-800 border border-slate-700 p-5 rounded-2xl w-[400px] shadow-2xl animate-pop no-print">
-                                <label className="text-[10px] font-bold text-slate-500 block mb-1">앱스 스크립트 URL</label>
+                                <label className="text-[10px] font-bold text-slate-500 block mb-1">앱스 스크립트 API URL</label>
                                 <input value={scriptUrl} onChange={e=>setScriptUrl(e.target.value)} className="w-full bg-slate-900 rounded p-2 text-[10px] text-indigo-300 font-mono mb-4 outline-none border border-white/5" />
-                                <label className="text-[10px] font-bold text-slate-500 block mb-1">구글 시트 주소</label>
+                                <label className="text-[10px] font-bold text-slate-500 block mb-1">구글 시트 실제 주소</label>
                                 <input value={sheetUrl} onChange={e=>setSheetUrl(e.target.value)} className="w-full bg-slate-900 rounded p-2 text-[10px] text-slate-400 font-mono mb-6 outline-none" />
-                                <button onClick={()=>setIsConfigOpen(false)} className="w-full bg-indigo-600 py-3 rounded-xl font-bold text-xs">설정 저장 후 닫기</button>
+                                <button onClick={()=>setIsConfigOpen(false)} className="w-full bg-indigo-600 py-3 rounded-xl font-bold text-xs text-white">설정 저장 후 닫기</button>
                             </div>
                         )}
 
@@ -438,17 +454,16 @@
                     <main className="flex-1 overflow-auto bg-slate-300 p-8 flex flex-col items-center">
                         {!labelModal ? (
                             <div className={`a4-paper-container ${activeTab === 'carton' ? 'carton-view-mode' : ''}`} id="paper">
-                                <div className={`grid gap-x-10 gap-y-8 items-start ${current.printCols === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                                <div className={`grid gap-x-10 gap-y-10 items-start ${current.printCols === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
                                     {groupedBlocks.map((block) => (
-                                        <div key={block.id} className="group/box border-2 border-slate-900 bg-white shadow-sm h-fit break-inside-avoid">
-                                            {/* 박스 헤더 (분류명) - 왼쪽 정렬 */}
-                                            <div style={{ backgroundColor: block.theme }} className="flex justify-between items-center p-2 text-white print:hidden border-b-2 border-slate-900 box-header-title">
+                                        <div key={block.id} className="group/box border-2 border-slate-900 bg-white break-inside-avoid rounded-lg overflow-hidden shadow-sm">
+                                            <div style={{ backgroundColor: block.theme }} className="flex justify-between items-center p-2 text-white print:hidden border-b-2 border-slate-900">
                                                 <EditableTitle initialValue={block.title} onSave={(v) => renameCategory(block.id, v)} style={{ fontSize: `${current.titleFontSize}px` }} className="flex-1" />
-                                                <div className="flex gap-1 no-print items-center">
+                                                <div className="flex gap-1 no-print items-center text-white">
                                                     <button onClick={() => {
                                                         const newItem = { id: Date.now(), cat: block.id, name: "", origin: "", vendor: "", checked: false };
                                                         updateCurrentData({ items: [newItem, ...current.items] });
-                                                    }} className="bg-white/20 p-1.5 rounded hover:bg-white/40 transition-colors"><Icon name="plus" size={14}/></button>
+                                                    }} className="bg-white/20 p-1.5 rounded hover:bg-white/40"><Icon name="plus" size={14}/></button>
                                                     <div className="relative group">
                                                         <input type="color" value={block.theme} onChange={e => setTabData(prev => ({...prev, [activeTab]: {...prev[activeTab], themes: {...prev[activeTab].themes, [block.id]: e.target.value}}}))} className="w-6 h-6 p-0 bg-transparent border-0 cursor-pointer absolute inset-0 opacity-0 z-10" />
                                                         <div className="w-6 h-6 rounded border border-white/30 flex items-center justify-center bg-white/10 group-hover:bg-white/20 transition-colors"><Icon name="palette" size={12} className="text-white" /></div>
@@ -456,15 +471,15 @@
                                                     <button onClick={() => confirm(`'${block.title}' 분류를 삭제할까요?`) && updateCurrentData({ items: current.items.filter(i => i.cat !== block.id), order: current.order.filter(c => c !== block.id) })} className="bg-white/20 p-1.5 rounded hover:bg-red-500/40"><Icon name="trash" size={14}/></button>
                                                 </div>
                                             </div>
-                                            <div style={{ backgroundColor: block.theme, fontSize: `${current.titleFontSize}px`, textAlign: 'left', paddingLeft: '12px' }} className="hidden print:block text-white font-black py-2 border-b-2 border-slate-900">{block.title}</div>
+                                            <div style={{ backgroundColor: block.theme, fontSize: `${current.titleFontSize}px`, textAlign: 'left', padding: '10px 15px' }} className="hidden print:block text-white font-black border-b-2 border-slate-900">{block.title}</div>
                                             
                                             <table className="w-full border-collapse" style={{ fontSize: `${current.fontSize}px` }}>
                                                 <thead className="bg-slate-50 border-b-2 border-slate-900 font-bold text-left">
                                                     <tr>
                                                         <th className="w-10 border-r border-slate-900 py-2 text-center">V</th>
-                                                        <th className="px-3 border-r border-slate-900">제품명</th>
-                                                        {activeTab !== 'carton' && <th className="w-24 px-3 border-r border-slate-900">원산지</th>}
-                                                        <th className="w-32 px-3">{activeTab === 'carton' ? '소비기한' : '공급처'}</th>
+                                                        <th className="px-4 border-r border-slate-900">제품명</th>
+                                                        {activeTab !== 'carton' && <th className="w-24 px-4 border-r border-slate-900">원산지</th>}
+                                                        <th className="w-32 px-4">{activeTab === 'carton' ? '소비기한' : '공급처'}</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
@@ -484,8 +499,8 @@
                                                                             rows={item.name.split('\n').length || 1}
                                                                         />
                                                                         <div className="flex gap-1 no-print opacity-0 group-hover/row:opacity-100 transition-opacity p-1 shrink-0">
-                                                                            {activeTab === 'carton' && <button onClick={() => openLabelMaker(item)} className="text-indigo-500 hover:scale-110 transition-transform"><Icon name="printer" size={14}/></button>}
-                                                                            <button onClick={() => updateCurrentData({ items: current.items.filter(i => i.id !== item.id) })} className="text-red-400 hover:scale-110 transition-transform"><Icon name="trash" size={14}/></button>
+                                                                            {activeTab === 'carton' && <button onClick={() => openLabelMaker(item)} className="text-indigo-500 hover:scale-110"><Icon name="printer" size={14}/></button>}
+                                                                            <button onClick={() => updateCurrentData({ items: current.items.filter(i => i.id !== item.id) })} className="text-red-400 hover:scale-110"><Icon name="trash" size={14}/></button>
                                                                         </div>
                                                                     </div>
                                                                 </td>
@@ -523,9 +538,9 @@
 
                                 <div className="w-[420px] space-y-4 no-print editor-sidebar p-2">
                                     <div className="bg-white p-6 rounded-3xl shadow-lg border border-slate-200">
-                                        <div className="flex justify-between items-center mb-6">
-                                            <h3 className="font-black text-xs uppercase text-slate-400 tracking-tighter">스타일 에디터</h3>
-                                            <button onClick={() => setLabelModal(null)} className="p-2 text-slate-300 hover:text-red-500 transition-colors"><Icon name="x" size={24}/></button>
+                                        <div className="flex justify-between items-center mb-6 text-slate-400">
+                                            <h3 className="font-black text-xs uppercase tracking-tighter">라벨 스타일 에디터</h3>
+                                            <button onClick={() => setLabelModal(null)} className="p-2 hover:text-red-500 transition-colors"><Icon name="x" size={24}/></button>
                                         </div>
                                         
                                         <div className="flex bg-slate-100 p-1 rounded-2xl mb-6">
@@ -535,25 +550,21 @@
 
                                         <div className="space-y-6">
                                             <div className="space-y-2">
-                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">텍스트 입력</label>
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">메인 제품명</label>
                                                 <textarea value={labelModal.mainText} onChange={e => setLabelModal({...labelModal, mainText: e.target.value})} className="w-full border-2 border-slate-100 p-4 rounded-2xl h-32 font-bold text-sm bg-slate-50 focus:border-indigo-500 outline-none transition-all" />
                                             </div>
-                                            
                                             {!labelModal.isSingleZone && (
                                                 <div className="space-y-2">
-                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">하단 텍스트</label>
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">하단 추가 정보</label>
                                                     <input value={labelModal.footerText} onChange={e => setLabelModal({...labelModal, footerText: e.target.value})} className="w-full border-2 border-slate-100 p-4 rounded-2xl font-bold text-sm bg-slate-50 focus:border-indigo-500 outline-none transition-all" />
                                                 </div>
                                             )}
-
                                             <ComplexColorPicker label="배경 색상" colorKey="bgTop" currentColor={labelModal.bgTop} onColorSelect={(k,v) => setLabelModal({...labelModal, [k]:v})} />
                                             <ComplexColorPicker label="글자 색상" colorKey="colorTop" currentColor={labelModal.colorTop} onColorSelect={(k,v) => setLabelModal({...labelModal, [k]:v})} />
-
                                             <div className="space-y-2">
-                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex justify-between">메인 크기 <span>{labelModal.mainSize}px</span></label>
+                                                <label className="text-[10px] font-black text-slate-400 uppercase flex justify-between tracking-widest">글자 크기 <span className="text-indigo-600 font-mono">{labelModal.mainSize}px</span></label>
                                                 <input type="range" min="40" max="600" value={labelModal.mainSize} onChange={e => setLabelModal({...labelModal, mainSize: parseInt(e.target.value)})} className="w-full h-2 accent-indigo-600 bg-slate-100 rounded-lg appearance-none cursor-pointer" />
                                             </div>
-
                                             <button onClick={saveLabelSettings} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black shadow-xl hover:bg-blue-700 transition-all transform active:scale-95">설정 저장 및 적용</button>
                                         </div>
                                     </div>
