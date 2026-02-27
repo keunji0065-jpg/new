@@ -32,7 +32,7 @@
             transform-origin: top center;
         }
 
-        /* 🚨 인쇄 설정: 브라우저 개입 완벽 차단 및 100% 수동 컨트롤 🚨 */
+        /* 🚨 인쇄 설정: 브라우저 강제 설정 완벽 무력화 및 여백 0 처리 🚨 */
         @media print {
             @page { 
                 size: A4 landscape; 
@@ -40,7 +40,8 @@
             }
             .no-print { display: none !important; }
             
-            html, body, #root, main { 
+            /* Tailwind의 화면 레이아웃 속성을 인쇄 시 완전히 소거 (첫 페이지 여백 및 1페이지 잘림 해결의 핵심) */
+            html, body, #root, .print-wrapper, main { 
                 background: white !important; 
                 display: block !important; 
                 position: static !important;
@@ -56,33 +57,42 @@
             header { display: none !important; } 
 
             .print-pages-wrapper {
-                gap: 0 !important; /* 인쇄 시 페이지 사이 갭 제거 */
+                display: block !important;
+                gap: 0 !important; 
+                margin: 0 !important;
+                padding: 0 !important;
             }
 
             .a4-paper-container { 
                 box-shadow: none !important; 
                 border: none !important; 
-                width: 100% !important; 
-                height: auto !important; 
-                min-height: 0 !important;
+                width: 297mm !important; /* A4 가로폭 강제 */
+                height: 210mm !important; /* A4 세로폭 강제하여 브라우저 오차 방지 */
+                min-height: 210mm !important;
+                max-height: 210mm !important;
                 margin: 0 !important; 
-                padding: 0 !important; /* 👈 인쇄 시 코드상 여백 0 (사용자 조절) */
-                display: block !important;
+                padding: 0 !important; /* 사용자 요청대로 여백 완벽 제거 */
+                display: flex !important;
                 position: relative !important;
-                overflow: hidden !important;
-                page-break-after: always !important; /* 각 A4 컨테이너마다 무조건 페이지 넘김 */
-                page-break-inside: avoid !important;
+                overflow: hidden !important; /* 정해진 A4 규격을 넘는 미세한 오차 절삭 */
+                page-break-after: always !important; 
+                break-after: page !important;
             }
             
             .a4-paper-container:last-child {
                 page-break-after: auto !important;
+                break-after: auto !important;
             }
             
             /* 박스 깨짐 2중 방지 */
             .group\/box {
                 page-break-inside: avoid !important;
                 break-inside: avoid-page !important;
+                width: 100% !important;
             }
+            
+            table { page-break-inside: auto !important; width: 100% !important; }
+            tr { page-break-inside: avoid !important; page-break-after: auto !important; }
             
             * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         }
@@ -219,7 +229,7 @@
 
         const App = () => {
             const [tabData, setTabData] = useState(() => {
-                const saved = localStorage.getItem('cellina_inventory_final_v60');
+                const saved = localStorage.getItem('cellina_inventory_final_v61');
                 return saved ? JSON.parse(saved) : INITIAL_DATA;
             });
             const [scriptUrl, setScriptUrl] = useState(() => localStorage.getItem('cellina_script_url') || DEFAULT_SCRIPT_URL);
@@ -234,7 +244,7 @@
             const tabNameMapping = { 'sample': '샘플목록', 'carton': '카톤박스' };
 
             useEffect(() => {
-                localStorage.setItem('cellina_inventory_final_v60', JSON.stringify(tabData));
+                localStorage.setItem('cellina_inventory_final_v61', JSON.stringify(tabData));
                 localStorage.setItem('cellina_script_url', scriptUrl.trim());
                 localStorage.setItem('cellina_sheet_url', sheetUrl.trim());
             }, [tabData, scriptUrl, sheetUrl]);
@@ -341,19 +351,20 @@
                 alert("라벨 설정이 로컬에 저장되었습니다.");
             };
 
-            // 🚨 혁신적 스마트 페이징 시스템 🚨
-            // A4 한 장에 들어갈 박스들을 "Page" 단위로 완벽하게 나누어 HTML 렌더링에 반영
+            // 🚨 혁신적 스마트 페이징 시스템 (픽셀 단위 정밀 계산) 🚨
             const pages = useMemo(() => {
                 if (labelModal) return [];
 
-                // A4 가로 기준 가용 높이 (픽셀 환산). 패딩 제외하고 약 740px을 안전 마진으로 둠.
-                const MAX_COL_HEIGHT = 740; 
-                // 헤더 높이(제목 + 표 헤더)
+                // A4 가로(Landscape) 기준 가용 높이 설정 (픽셀 단위). 
+                // 종이 높이(793px)에서 안전 여백을 뺀 실제 박스가 들어갈 수 있는 공간
+                const MAX_COL_HEIGHT = current.orientation === 'landscape' ? 760 : 1100;
+                
+                // 제목과 테이블 헤더가 차지하는 기본 높이
                 const headerHeight = current.titleFontSize + 45; 
                 
                 let chunks = [];
                 
-                // 1단계: 각 분류별로 높이를 계산하여, 740px이 넘어가는 박스는 작은 청크로 쪼개기
+                // 1단계: 각 아이템의 실제 차지 높이(px)를 계산하여 박스 쪼개기
                 current.order.forEach(cat => {
                     const catItems = filteredItems.filter(i => i.cat === cat);
                     
@@ -364,20 +375,30 @@
                         let currentHeight = headerHeight;
                         let chunkIndex = 1;
 
-                        catItems.forEach((item, index) => {
-                            // 사용자가 입력한 엔터 갯수 감지
-                            const nameLines = item.name ? item.name.split('\n').length : 1;
-                            const originLines = item.origin ? item.origin.split('\n').length : 1;
-                            const vendorLines = item.vendor ? item.vendor.split('\n').length : 1;
+                        // 한 줄에 들어갈 수 있는 글자 수 (폰트 크기에 반비례)
+                        const nameLimit = Math.max(10, Math.floor(230 / current.fontSize));
+                        const originLimit = Math.max(4, Math.floor(80 / current.fontSize));
+                        const vendorLimit = Math.max(5, Math.floor(110 / current.fontSize));
+
+                        const getEstimatedLines = (str, limit) => {
+                            if (!str) return 1;
+                            return str.split('\n').reduce((acc, line) => acc + Math.max(1, Math.ceil(line.length / limit)), 0);
+                        };
+
+                        catItems.forEach((item) => {
+                            const nameLines = getEstimatedLines(item.name, nameLimit);
+                            const originLines = getEstimatedLines(item.origin, originLimit);
+                            const vendorLines = getEstimatedLines(item.vendor, vendorLimit);
                             const maxLines = Math.max(nameLines, originLines, vendorLines);
 
-                            // 해당 아이템 1줄이 차지하는 실제 높이(px) 계산
+                            // 패딩(16px) + 줄높이(글자크기*1.4) + 테두리(1px)
                             const rowHeight = 16 + (maxLines * current.fontSize * 1.4) + 1;
 
+                            // 박스 높이가 A4 가용 범위를 초과하면 강제 분할
                             if (currentHeight + rowHeight > MAX_COL_HEIGHT && currentChunk.length > 0) {
                                 chunks.push({
                                     id: `${cat}-${chunkIndex}`,
-                                    title: cat, // (계속) 삭제
+                                    title: cat, // 👈 '(계속)' 문구 삭제. 완벽히 동일한 이름 사용.
                                     originalCat: cat,
                                     items: currentChunk,
                                     theme: current.themes[cat],
@@ -395,7 +416,7 @@
                         if (currentChunk.length > 0) {
                             chunks.push({
                                 id: `${cat}-${chunkIndex}`,
-                                title: cat, // (계속) 삭제
+                                title: cat, 
                                 originalCat: cat,
                                 items: currentChunk,
                                 theme: current.themes[cat],
@@ -405,33 +426,40 @@
                     }
                 });
 
-                // 2단계: 쪼개진 청크(박스)들을 '페이지'와 '컬럼(좌/우)' 단위로 분배
+                // 2단계: 쪼개진 박스들을 물리적인 'A4 페이지' 단위로 분배 (2단 구성)
                 let newPages = [];
-                let currentPage = { col1: [], col2: [], col1Height: 0, col2Height: 0 };
-                const BOX_GAP = 20; // 박스 간 여백(px)
+                let currentPage = { cols: Array.from({length: current.printCols}, () => []), colHeights: Array(current.printCols).fill(0) };
+                const BOX_GAP = 20; // 박스 간격 (px)
                 
                 chunks.forEach(chunk => {
-                    if (currentPage.col1Height + chunk.height + (currentPage.col1.length > 0 ? BOX_GAP : 0) <= MAX_COL_HEIGHT) {
-                        currentPage.col1.push(chunk);
-                        currentPage.col1Height += chunk.height + (currentPage.col1.length > 0 ? BOX_GAP : 0);
-                    } else if (currentPage.col2Height + chunk.height + (currentPage.col2.length > 0 ? BOX_GAP : 0) <= MAX_COL_HEIGHT) {
-                        currentPage.col2.push(chunk);
-                        currentPage.col2Height += chunk.height + (currentPage.col2.length > 0 ? BOX_GAP : 0);
-                    } else {
-                        // 현재 페이지 좌/우 모두 다 찼으면 새 페이지로 넘김
+                    let placed = false;
+                    for (let c = 0; c < current.printCols; c++) {
+                        const addedHeight = chunk.height + (currentPage.cols[c].length > 0 ? BOX_GAP : 0);
+                        if (currentPage.colHeights[c] + addedHeight <= MAX_COL_HEIGHT) {
+                            currentPage.cols[c].push(chunk);
+                            currentPage.colHeights[c] += addedHeight;
+                            placed = true;
+                            break;
+                        }
+                    }
+
+                    // 현재 페이지의 모든 단이 가득 찼으면 다음 페이지(새 A4 용지)로 생성
+                    if (!placed) {
                         newPages.push(currentPage);
-                        currentPage = { col1: [chunk], col2: [], col1Height: chunk.height, col2Height: 0 };
+                        currentPage = { cols: Array.from({length: current.printCols}, () => []), colHeights: Array(current.printCols).fill(0) };
+                        currentPage.cols[0].push(chunk);
+                        currentPage.colHeights[0] = chunk.height;
                     }
                 });
                 
-                if (currentPage.col1.length > 0 || currentPage.col2.length > 0) {
+                if (currentPage.cols.some(col => col.length > 0)) {
                     newPages.push(currentPage);
                 }
 
-                return newPages.length > 0 ? newPages : [{col1: [], col2: [], col1Height:0, col2Height:0}];
-            }, [current.items, current.fontSize, current.titleFontSize, current.order, current.themes, filteredItems, searchTerm, labelModal]);
+                return newPages.length > 0 ? newPages : [{cols: Array.from({length: current.printCols}, () => [])}];
+            }, [current.items, current.fontSize, current.titleFontSize, current.orientation, current.printCols, current.order, current.themes, filteredItems, searchTerm, labelModal]);
 
-            // 공통 박스 렌더링 컴포넌트
+            // 공통 박스 렌더링
             const renderBox = (block) => (
                 <div key={block.id} className="group/box border-2 border-slate-900 bg-white break-inside-avoid rounded-lg overflow-hidden shadow-sm h-fit">
                     <div style={{ backgroundColor: block.theme }} className="flex justify-between items-center p-2 text-white print:hidden border-b-2 border-slate-900">
@@ -563,17 +591,14 @@
                     <main className="flex-1 overflow-auto bg-slate-300 p-8 flex flex-col items-center">
                         {!labelModal ? (
                             <div className="print-pages-wrapper w-full flex flex-col items-center gap-10">
-                                {/* 🚨 계산된 '페이지' 단위로 A4 컨테이너를 직접 여러 개 렌더링 🚨 */}
+                                {/* 🚨 계산된 '페이지' 단위로 A4 컨테이너를 완벽하게 분할 렌더링 🚨 */}
                                 {pages.map((page, pageIdx) => (
-                                    <div key={pageIdx} className={`a4-paper-container ${activeTab === 'carton' ? 'carton-view-mode' : ''}`}>
-                                        <div className="flex gap-5 h-full">
-                                            <div className="flex flex-col gap-5 w-1/2">
-                                                {page.col1.map(block => renderBox(block))}
+                                    <div key={pageIdx} className={`a4-paper-container flex gap-5 ${activeTab === 'carton' ? 'carton-view-mode' : ''}`}>
+                                        {page.cols.map((colBlocks, colIdx) => (
+                                            <div key={colIdx} className="flex flex-col gap-5 flex-1 w-full h-fit">
+                                                {colBlocks.map(block => renderBox(block))}
                                             </div>
-                                            <div className="flex flex-col gap-5 w-1/2">
-                                                {page.col2.map(block => renderBox(block))}
-                                            </div>
-                                        </div>
+                                        ))}
                                     </div>
                                 ))}
                             </div>
