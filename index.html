@@ -33,55 +33,48 @@
             transform-origin: top center;
         }
 
-        /* 🚨 인쇄 설정: 다중 페이지 출력 및 잘림 현상 절대 방지 🚨 */
+        /* 🚨 인쇄 설정: 윗 여백 완벽 제거 및 다중 페이지 최적화 🚨 */
         @media print {
             @page { 
                 size: A4 landscape; 
-                margin: 0 !important; 
+                margin: 5mm; /* 인쇄 시 최소 안전 여백만 설정 */
             }
             .no-print { display: none !important; }
             
-            /* 모든 상위 컨테이너의 높이 고정을 해제 (매우 중요) */
-            html, body, #root, .print-wrapper { 
+            /* 모든 상위 요소의 중앙 정렬(Flex) 및 높이 고정을 강제 해제 (윗 여백 주범) */
+            html, body, #root, .print-wrapper, main { 
                 background: white !important; 
+                display: block !important; /* Flex 강제 해제 */
+                position: static !important;
                 height: auto !important; 
                 min-height: 0 !important;
                 max-height: none !important;
+                width: auto !important;
                 overflow: visible !important; 
                 margin: 0 !important; 
                 padding: 0 !important; 
-                position: static !important;
             }
             
             header { display: none !important; } 
 
-            main {
-                display: block !important;
-                height: auto !important;
-                overflow: visible !important;
-                padding: 0 !important;
-                margin: 0 !important;
-            }
-
             .a4-paper-container { 
                 box-shadow: none !important; 
                 border: none !important; 
-                width: 297mm !important; 
+                width: 100% !important; 
                 height: auto !important; 
                 min-height: 0 !important;
                 margin: 0 !important; 
-                padding: 10mm !important; 
+                padding: 0 !important; /* 화면용 여백 제거 */
                 display: block !important;
                 position: relative !important;
                 overflow: visible !important;
-                page-break-after: auto;
             }
             
-            /* 박스가 페이지 경계에서 잘리지 않도록 보호 */
+            /* 박스가 페이지 경계에서 잘리지 않도록 강력한 보호 */
             .group\/box {
-                break-inside: avoid-page !important;
                 page-break-inside: avoid !important;
-                margin-bottom: 10mm !important;
+                break-inside: avoid-page !important;
+                margin-bottom: 8mm !important;
                 display: block !important;
             }
             
@@ -99,6 +92,7 @@
         .tab-inactive { background: #0f172a; color: #64748b; }
         .tab-active { background: #ffffff; color: #4f46e5; border: 1px solid #e2e8f0; border-bottom: 2px solid white; }
 
+        /* 텍스트 왼쪽 정렬 및 수직 중앙 정렬 스타일 */
         .cell-textarea {
             width: 100%;
             background: transparent;
@@ -154,12 +148,12 @@
             'x': <><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>,
             'save': <><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></>,
             'refresh': <><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></>,
-            'settings': <><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06-.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></>,
+            'settings': <><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06-.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></>,
             'palette': <><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></>,
             'folder-plus': <><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1-2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></>
         };
 
-        const DEFAULT_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz9pQkbe9ArMid7mmlnFiQRtFf8o-CYxJT9hUXc5vz7ayZg5GuNOmRr5tW8aqBWXl2w/exec";
+        const DEFAULT_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyE_S_2HKvPX6R3lRLZ_z6bI-RLxgX3E4D3oZziAEBHRcqRUWGXakX2NeMcRgl4VZbk/exec";
         const DEFAULT_SHEET_URL = "https://docs.google.com/spreadsheets/d/1bC9nm1nAUjHV1L3-B5o8wUO1VpvjFXElN4CPquxZBgU/edit?usp=sharing";
 
         const INITIAL_DATA = {
@@ -223,7 +217,7 @@
 
         const App = () => {
             const [tabData, setTabData] = useState(() => {
-                const saved = localStorage.getItem('cellina_inventory_final_v54');
+                const saved = localStorage.getItem('cellina_inventory_final_v55');
                 return saved ? JSON.parse(saved) : INITIAL_DATA;
             });
             const [scriptUrl, setScriptUrl] = useState(() => localStorage.getItem('cellina_script_url') || DEFAULT_SCRIPT_URL);
@@ -238,7 +232,7 @@
             const tabNameMapping = { 'sample': '샘플목록', 'carton': '카톤박스' };
 
             useEffect(() => {
-                localStorage.setItem('cellina_inventory_final_v54', JSON.stringify(tabData));
+                localStorage.setItem('cellina_inventory_final_v55', JSON.stringify(tabData));
                 localStorage.setItem('cellina_script_url', scriptUrl.trim());
                 localStorage.setItem('cellina_sheet_url', sheetUrl.trim());
             }, [tabData, scriptUrl, sheetUrl]);
@@ -345,33 +339,63 @@
                 setLabelModal(null);
             };
 
-            // 🚨 핵심: 글자 크기에 맞춰 데이터를 박스별로 쪼개는 스마트 페이징 로직 🚨
+            // 🚨 핵심: 줄바꿈(엔터) 및 글자 크기까지 모두 고려하여 똑똑하게 박스를 분할하는 로직 🚨
             const groupedBlocks = useMemo(() => {
-                // 글자 크기에 따라 들어갈 수 있는 줄 수 보수적으로 계산 (잘림 방지)
-                const baseLimit = current.orientation === 'landscape' ? 12 : 24; 
-                const fontSizeAdjustment = Math.max(0.7, (current.fontSize / 13));
-                const limit = Math.floor(baseLimit / fontSizeAdjustment);
+                // A4 용지에 들어갈 수 있는 한 단의 최대 줄 수
+                const baseLines = current.orientation === 'landscape' ? 16 : 28; 
+                const fontSizeAdjustment = Math.max(0.8, (current.fontSize / 13));
+                const maxLinesAllowed = Math.floor(baseLines / fontSizeAdjustment);
 
                 let result = [];
                 current.order.forEach(cat => {
                     const catItems = filteredItems.filter(i => i.cat === cat);
+                    
                     if (!searchTerm && catItems.length === 0) {
                         result.push({ id: `${cat}-empty`, title: cat, originalCat: cat, items: [], theme: current.themes[cat] });
                     } else if (catItems.length > 0) {
-                        for (let i = 0; i < catItems.length; i += limit) {
-                            const chunk = catItems.slice(i, i + limit);
+                        let currentChunk = [];
+                        let currentLinesCount = 0;
+                        let chunkIndex = 1;
+
+                        catItems.forEach(item => {
+                            // 각 입력칸의 엔터(줄바꿈) 개수를 세어 가장 긴 줄 수를 찾음
+                            const nameLines = item.name ? item.name.split('\n').length : 1;
+                            const originLines = item.origin ? item.origin.split('\n').length : 1;
+                            const vendorLines = item.vendor ? item.vendor.split('\n').length : 1;
+                            const itemLines = Math.max(nameLines, originLines, vendorLines);
+
+                            // 현재 박스에 아이템을 넣었을 때 한계치를 초과하면 새로운 박스로 분할
+                            if (currentLinesCount + itemLines > maxLinesAllowed && currentChunk.length > 0) {
+                                result.push({
+                                    id: `${cat}-${chunkIndex}`,
+                                    title: chunkIndex === 1 ? cat : `${cat} (계속)`,
+                                    originalCat: cat,
+                                    items: currentChunk,
+                                    theme: current.themes[cat]
+                                });
+                                currentChunk = [item];
+                                currentLinesCount = itemLines;
+                                chunkIndex++;
+                            } else {
+                                currentChunk.push(item);
+                                currentLinesCount += itemLines;
+                            }
+                        });
+
+                        // 남은 아이템 처리
+                        if (currentChunk.length > 0) {
                             result.push({
-                                id: `${cat}-${i}`,
-                                title: i === 0 ? cat : `${cat} (계속)`,
+                                id: `${cat}-${chunkIndex}`,
+                                title: chunkIndex === 1 ? cat : `${cat} (계속)`,
                                 originalCat: cat,
-                                items: chunk,
+                                items: currentChunk,
                                 theme: current.themes[cat]
                             });
                         }
                     }
                 });
                 return result;
-            }, [current.items, current.fontSize, current.orientation, searchTerm]);
+            }, [current.items, current.fontSize, current.orientation, current.order, current.themes, filteredItems, searchTerm]);
 
             return (
                 <div className="h-screen flex flex-col overflow-hidden print-wrapper">
@@ -513,9 +537,9 @@
 
                                 <div className="w-[420px] space-y-4 no-print editor-sidebar p-2">
                                     <div className="bg-white p-6 rounded-3xl shadow-lg border border-slate-200">
-                                        <div className="flex justify-between items-center mb-6">
-                                            <h3 className="font-black text-xs uppercase tracking-tighter text-slate-400">라벨 스타일 에디터</h3>
-                                            <button onClick={() => setLabelModal(null)} className="p-2 text-slate-300 hover:text-red-500 transition-colors"><Icon name="x" size={24}/></button>
+                                        <div className="flex justify-between items-center mb-6 text-slate-400">
+                                            <h3 className="font-black text-xs uppercase tracking-tighter">라벨 스타일 에디터</h3>
+                                            <button onClick={() => setLabelModal(null)} className="p-2 hover:text-red-500 transition-colors"><Icon name="x" size={24}/></button>
                                         </div>
                                         <div className="flex bg-slate-100 p-1 rounded-2xl mb-6">
                                             <button onClick={() => setLabelModal({...labelModal, isSingleZone: false})} className={`flex-1 py-3 text-[10px] font-black rounded-xl transition-all ${!labelModal.isSingleZone ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}>표준 (2단)</button>
