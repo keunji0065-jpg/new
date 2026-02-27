@@ -18,13 +18,12 @@
             overflow-x: hidden; 
         }
         
-        /* 화면 미리보기용 A4 컨테이너 (여백 5mm) */
+        /* 화면 미리보기용 A4 컨테이너 (화면에서만 상하좌우 5mm 유지) */
         .a4-paper-container {
             background: white;
-            box-shadow: 0 40px 80px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
             flex-shrink: 0;
             box-sizing: border-box;
-            margin: 40px auto;
             position: relative;
             width: 297mm;
             min-height: 210mm;
@@ -33,28 +32,32 @@
             transform-origin: top center;
         }
 
-        /* 🚨 인쇄 설정: 외부 여백은 날리고 내부 여백 5mm만 유지 🚨 */
+        /* 🚨 인쇄 설정: 브라우저 개입 완벽 차단 및 100% 수동 컨트롤 🚨 */
         @media print {
             @page { 
                 size: A4 landscape; 
-                margin: 0 !important; 
+                margin: 0 !important; /* 브라우저 여백 강제 0 */
             }
             .no-print { display: none !important; }
             
-            html, body, #root, .print-wrapper, main { 
+            html, body, #root, main { 
                 background: white !important; 
                 display: block !important; 
                 position: static !important;
                 height: auto !important; 
                 min-height: 0 !important;
                 max-height: none !important;
-                width: auto !important;
+                width: 100% !important;
                 overflow: visible !important; 
                 margin: 0 !important; 
                 padding: 0 !important; 
             }
             
             header { display: none !important; } 
+
+            .print-pages-wrapper {
+                gap: 0 !important; /* 인쇄 시 페이지 사이 갭 제거 */
+            }
 
             .a4-paper-container { 
                 box-shadow: none !important; 
@@ -63,21 +66,23 @@
                 height: auto !important; 
                 min-height: 0 !important;
                 margin: 0 !important; 
-                padding: 5mm !important; 
+                padding: 0 !important; /* 👈 인쇄 시 코드상 여백 0 (사용자 조절) */
                 display: block !important;
                 position: relative !important;
-                overflow: visible !important;
+                overflow: hidden !important;
+                page-break-after: always !important; /* 각 A4 컨테이너마다 무조건 페이지 넘김 */
+                page-break-inside: avoid !important;
             }
             
+            .a4-paper-container:last-child {
+                page-break-after: auto !important;
+            }
+            
+            /* 박스 깨짐 2중 방지 */
             .group\/box {
                 page-break-inside: avoid !important;
                 break-inside: avoid-page !important;
-                margin-bottom: 5mm !important; 
-                display: block !important;
             }
-            
-            table { page-break-inside: auto !important; width: 100% !important; }
-            tr { page-break-inside: avoid !important; page-break-after: auto !important; }
             
             * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         }
@@ -127,13 +132,14 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef, useCallback } = React;
 
+        // 🚨 회색/흰색을 제거한 선명하고 다채로운 고대비 30색 팔레트 🚨
         const PRESET_COLORS = [
-            "#3B82F6", "#EF4444", "#F97316", "#F59E0B", "#22C55E", 
-            "#6366F1", "#A855F7", "#EC4899", "#06B6D4", "#1e40af",
-            "#000000", "#374151", "#6B7280", "#9CA3AF", "#D1D5DB", "#8B5CF6",
-            "#B91C1C", "#EA580C", "#D97706", "#CA8A04", "#65A30D", "#16A34A",
-            "#10B981", "#059669", "#0891B2", "#0EA5E9", "#0284C7", "#2563EB", 
-            "#4F46E5", "#334155" 
+            "#ef4444", "#3b82f6", "#22c55e", "#f97316", "#8b5cf6", 
+            "#06b6d4", "#ec4899", "#eab308", "#6366f1", "#14b8a6",
+            "#f43f5e", "#84cc16", "#a855f7", "#0ea5e9", "#10b981",
+            "#f59e0b", "#d946ef", "#0284c7", "#b91c1c", "#15803d",
+            "#c2410c", "#4338ca", "#be185d", "#ca8a04", "#0f766e",
+            "#4d7c0f", "#1d4ed8", "#047857", "#b45309", "#000000" 
         ];
 
         const ICON_PATHS = {
@@ -157,12 +163,12 @@
             sample: { 
                 title: "샘플 목록", printCols: 2, orientation: "landscape", fontSize: 13, titleFontSize: 16, fontFamily: "'Noto Sans KR', sans-serif",
                 items: [{ id: Date.now(), cat: "기본분류", name: "샘플 제품명", origin: "국산", vendor: "기본 공급처", checked: false }], 
-                themes: { "기본분류": "#3B82F6" }, order: ["기본분류"]
+                themes: { "기본분류": "#3b82f6" }, order: ["기본분류"]
             },
             carton: { 
                 title: "카톤박스", printCols: 2, orientation: "landscape", fontSize: 13, titleFontSize: 16, fontFamily: "'Noto Sans KR', sans-serif",
                 items: [{ id: Date.now()+1, cat: "생산라벨", name: "박스 제품명", origin: "", vendor: "2026.12.31", checked: false }], 
-                themes: { "생산라벨": "#EF4444" }, order: ["생산라벨"]
+                themes: { "생산라벨": "#ef4444" }, order: ["생산라벨"]
             }
         };
 
@@ -213,7 +219,7 @@
 
         const App = () => {
             const [tabData, setTabData] = useState(() => {
-                const saved = localStorage.getItem('cellina_inventory_final_v57');
+                const saved = localStorage.getItem('cellina_inventory_final_v60');
                 return saved ? JSON.parse(saved) : INITIAL_DATA;
             });
             const [scriptUrl, setScriptUrl] = useState(() => localStorage.getItem('cellina_script_url') || DEFAULT_SCRIPT_URL);
@@ -228,7 +234,7 @@
             const tabNameMapping = { 'sample': '샘플목록', 'carton': '카톤박스' };
 
             useEffect(() => {
-                localStorage.setItem('cellina_inventory_final_v57', JSON.stringify(tabData));
+                localStorage.setItem('cellina_inventory_final_v60', JSON.stringify(tabData));
                 localStorage.setItem('cellina_script_url', scriptUrl.trim());
                 localStorage.setItem('cellina_sheet_url', sheetUrl.trim());
             }, [tabData, scriptUrl, sheetUrl]);
@@ -332,62 +338,157 @@
 
             const saveLabelSettings = () => {
                 updateCurrentData({ items: current.items.map(i => i.id === labelModal.itemId ? { ...i, name: labelModal.mainText, labelSettings: { ...labelModal } } : i) });
-                // Note: local state saved. User still needs to press "시트 저장" to push text edits to sheet.
                 alert("라벨 설정이 로컬에 저장되었습니다.");
             };
 
-            const groupedBlocks = useMemo(() => {
-                const baseLines = current.orientation === 'landscape' ? 16 : 28; 
-                const fontSizeAdjustment = Math.max(0.8, (current.fontSize / 13));
-                const maxLinesAllowed = Math.floor(baseLines / fontSizeAdjustment);
+            // 🚨 혁신적 스마트 페이징 시스템 🚨
+            // A4 한 장에 들어갈 박스들을 "Page" 단위로 완벽하게 나누어 HTML 렌더링에 반영
+            const pages = useMemo(() => {
+                if (labelModal) return [];
 
-                let result = [];
+                // A4 가로 기준 가용 높이 (픽셀 환산). 패딩 제외하고 약 740px을 안전 마진으로 둠.
+                const MAX_COL_HEIGHT = 740; 
+                // 헤더 높이(제목 + 표 헤더)
+                const headerHeight = current.titleFontSize + 45; 
+                
+                let chunks = [];
+                
+                // 1단계: 각 분류별로 높이를 계산하여, 740px이 넘어가는 박스는 작은 청크로 쪼개기
                 current.order.forEach(cat => {
                     const catItems = filteredItems.filter(i => i.cat === cat);
                     
                     if (!searchTerm && catItems.length === 0) {
-                        result.push({ id: `${cat}-empty`, title: cat, originalCat: cat, items: [], theme: current.themes[cat] });
+                        chunks.push({ id: `${cat}-empty`, title: cat, originalCat: cat, items: [], theme: current.themes[cat], height: headerHeight + 50 });
                     } else if (catItems.length > 0) {
                         let currentChunk = [];
-                        let currentLinesCount = 0;
+                        let currentHeight = headerHeight;
                         let chunkIndex = 1;
 
-                        catItems.forEach(item => {
+                        catItems.forEach((item, index) => {
+                            // 사용자가 입력한 엔터 갯수 감지
                             const nameLines = item.name ? item.name.split('\n').length : 1;
                             const originLines = item.origin ? item.origin.split('\n').length : 1;
                             const vendorLines = item.vendor ? item.vendor.split('\n').length : 1;
-                            const itemLines = Math.max(nameLines, originLines, vendorLines);
+                            const maxLines = Math.max(nameLines, originLines, vendorLines);
 
-                            if (currentLinesCount + itemLines > maxLinesAllowed && currentChunk.length > 0) {
-                                result.push({
+                            // 해당 아이템 1줄이 차지하는 실제 높이(px) 계산
+                            const rowHeight = 16 + (maxLines * current.fontSize * 1.4) + 1;
+
+                            if (currentHeight + rowHeight > MAX_COL_HEIGHT && currentChunk.length > 0) {
+                                chunks.push({
                                     id: `${cat}-${chunkIndex}`,
-                                    title: cat, /* '(계속)' 문구 완전 제거됨 */
+                                    title: cat, // (계속) 삭제
                                     originalCat: cat,
                                     items: currentChunk,
-                                    theme: current.themes[cat]
+                                    theme: current.themes[cat],
+                                    height: currentHeight
                                 });
                                 currentChunk = [item];
-                                currentLinesCount = itemLines;
+                                currentHeight = headerHeight + rowHeight;
                                 chunkIndex++;
                             } else {
                                 currentChunk.push(item);
-                                currentLinesCount += itemLines;
+                                currentHeight += rowHeight;
                             }
                         });
 
                         if (currentChunk.length > 0) {
-                            result.push({
+                            chunks.push({
                                 id: `${cat}-${chunkIndex}`,
-                                title: cat, /* '(계속)' 문구 완전 제거됨 */
+                                title: cat, // (계속) 삭제
                                 originalCat: cat,
                                 items: currentChunk,
-                                theme: current.themes[cat]
+                                theme: current.themes[cat],
+                                height: currentHeight
                             });
                         }
                     }
                 });
-                return result;
-            }, [current.items, current.fontSize, current.orientation, current.order, current.themes, filteredItems, searchTerm]);
+
+                // 2단계: 쪼개진 청크(박스)들을 '페이지'와 '컬럼(좌/우)' 단위로 분배
+                let newPages = [];
+                let currentPage = { col1: [], col2: [], col1Height: 0, col2Height: 0 };
+                const BOX_GAP = 20; // 박스 간 여백(px)
+                
+                chunks.forEach(chunk => {
+                    if (currentPage.col1Height + chunk.height + (currentPage.col1.length > 0 ? BOX_GAP : 0) <= MAX_COL_HEIGHT) {
+                        currentPage.col1.push(chunk);
+                        currentPage.col1Height += chunk.height + (currentPage.col1.length > 0 ? BOX_GAP : 0);
+                    } else if (currentPage.col2Height + chunk.height + (currentPage.col2.length > 0 ? BOX_GAP : 0) <= MAX_COL_HEIGHT) {
+                        currentPage.col2.push(chunk);
+                        currentPage.col2Height += chunk.height + (currentPage.col2.length > 0 ? BOX_GAP : 0);
+                    } else {
+                        // 현재 페이지 좌/우 모두 다 찼으면 새 페이지로 넘김
+                        newPages.push(currentPage);
+                        currentPage = { col1: [chunk], col2: [], col1Height: chunk.height, col2Height: 0 };
+                    }
+                });
+                
+                if (currentPage.col1.length > 0 || currentPage.col2.length > 0) {
+                    newPages.push(currentPage);
+                }
+
+                return newPages.length > 0 ? newPages : [{col1: [], col2: [], col1Height:0, col2Height:0}];
+            }, [current.items, current.fontSize, current.titleFontSize, current.order, current.themes, filteredItems, searchTerm, labelModal]);
+
+            // 공통 박스 렌더링 컴포넌트
+            const renderBox = (block) => (
+                <div key={block.id} className="group/box border-2 border-slate-900 bg-white break-inside-avoid rounded-lg overflow-hidden shadow-sm h-fit">
+                    <div style={{ backgroundColor: block.theme }} className="flex justify-between items-center p-2 text-white print:hidden border-b-2 border-slate-900">
+                        <EditableTitle initialValue={block.title} onSave={(v) => renameCategory(block.originalCat, v)} style={{ fontSize: `${current.titleFontSize}px` }} className="flex-1" />
+                        <div className="flex gap-1 no-print items-center text-white pr-2">
+                            <button onClick={() => updateCurrentData({ items: [{ id: Date.now(), cat: block.originalCat, name: "", origin: "", vendor: "", checked: false }, ...current.items] })} className="bg-white/20 p-1.5 rounded hover:bg-white/40"><Icon name="plus" size={14}/></button>
+                            <div className="relative group">
+                                <input type="color" value={block.theme} onChange={e => setTabData(prev => ({...prev, [activeTab]: {...prev[activeTab], themes: {...prev[activeTab].themes, [block.originalCat]: e.target.value}}}))} className="w-6 h-6 p-0 bg-transparent border-0 cursor-pointer absolute inset-0 opacity-0 z-10" />
+                                <div className="w-6 h-6 rounded border border-white/30 flex items-center justify-center bg-white/10 group-hover:bg-white/20 transition-colors"><Icon name="palette" size={12} className="text-white" /></div>
+                            </div>
+                            <button onClick={() => confirm(`'${block.title}' 분류를 삭제할까요?`) && updateCurrentData({ items: current.items.filter(i => i.cat !== block.originalCat), order: current.order.filter(c => c !== block.originalCat) })} className="bg-white/20 p-1.5 rounded hover:bg-red-500/40"><Icon name="trash" size={14}/></button>
+                        </div>
+                    </div>
+                    <div style={{ backgroundColor: block.theme, fontSize: `${current.titleFontSize}px`, textAlign: 'left', padding: '10px 15px' }} className="hidden print:block text-white font-black border-b-2 border-slate-900">{block.title}</div>
+                    
+                    <table className="w-full border-collapse" style={{ fontSize: `${current.fontSize}px` }}>
+                        <thead className="bg-slate-50 border-b-2 border-slate-900 font-bold text-left">
+                            <tr>
+                                <th className="w-10 border-r border-slate-900 py-2 text-center">V</th>
+                                <th className="px-4 border-r border-slate-900">제품명</th>
+                                {activeTab !== 'carton' && <th className="w-24 px-4 border-r border-slate-900">원산지</th>}
+                                <th className="w-32 px-4">{activeTab === 'carton' ? '소비기한' : '공급처'}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {block.items.length === 0 ? (
+                                <tr><td colSpan="4" className="py-6 text-center text-slate-300 italic">내용 없음</td></tr>
+                            ) : (
+                                block.items.map(item => (
+                                    <tr key={item.id} className="border-b border-slate-200 group/row hover:bg-slate-50 transition-colors">
+                                        <td className="border-r border-slate-200 v-middle text-center">
+                                            <input type="checkbox" checked={item.checked} onChange={() => editItem(item.id, 'checked', !item.checked)} className="mx-auto block" style={{width:'15px', height:'15px'}} />
+                                        </td>
+                                        <td className="border-r border-slate-200 v-middle text-left">
+                                            <div className="flex items-center justify-between">
+                                                <textarea value={item.name} onChange={e => editItem(item.id, 'name', e.target.value)} className="cell-textarea font-black text-slate-800" rows={item.name.split('\n').length || 1} />
+                                                <div className="flex gap-1 no-print opacity-0 group-hover/row:opacity-100 transition-opacity p-1 shrink-0">
+                                                    {activeTab === 'carton' && <button onClick={() => openLabelMaker(item)} className="text-indigo-500 hover:scale-110"><Icon name="printer" size={14}/></button>}
+                                                    <button onClick={() => updateCurrentData({ items: current.items.filter(i => i.id !== item.id) })} className="text-red-400 hover:scale-110"><Icon name="trash" size={14}/></button>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        {activeTab !== 'carton' && (
+                                            <td className="border-r border-slate-200 v-middle text-left">
+                                                <textarea value={item.origin} onChange={e => editItem(item.id, 'origin', e.target.value)} className="cell-textarea font-medium" rows={item.origin.split('\n').length || 1} />
+                                            </td>
+                                        )}
+                                        <td className="v-middle text-left">
+                                            <textarea value={item.vendor} onChange={e => editItem(item.id, 'vendor', e.target.value)} className="cell-textarea text-slate-500 font-medium" rows={item.vendor.split('\n').length || 1} />
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            );
 
             return (
                 <div className="h-screen flex flex-col overflow-hidden print-wrapper">
@@ -406,7 +507,6 @@
                             )}
 
                             <div className="flex items-center gap-2">
-                                {/* 카톤박스 라벨 편집 모드일 때도 '시트 저장', '갱신' 기능 유지 */}
                                 {!labelModal ? (
                                     <div className="flex bg-slate-800 rounded-lg p-1 gap-3 items-center px-4 border border-slate-700">
                                         <div className="flex items-center gap-2">
@@ -462,66 +562,20 @@
 
                     <main className="flex-1 overflow-auto bg-slate-300 p-8 flex flex-col items-center">
                         {!labelModal ? (
-                            <div className={`a4-paper-container ${activeTab === 'carton' ? 'carton-view-mode' : ''}`} id="paper">
-                                <div className={`grid gap-x-10 gap-y-10 items-start ${current.printCols === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
-                                    {groupedBlocks.map((block) => (
-                                        <div key={block.id} className="group/box border-2 border-slate-900 bg-white break-inside-avoid rounded-lg overflow-hidden shadow-sm">
-                                            <div style={{ backgroundColor: block.theme }} className="flex justify-between items-center p-2 text-white print:hidden border-b-2 border-slate-900">
-                                                <EditableTitle initialValue={block.title} onSave={(v) => renameCategory(block.originalCat, v)} style={{ fontSize: `${current.titleFontSize}px` }} className="flex-1" />
-                                                <div className="flex gap-1 no-print items-center text-white pr-2">
-                                                    <button onClick={() => updateCurrentData({ items: [{ id: Date.now(), cat: block.originalCat, name: "", origin: "", vendor: "", checked: false }, ...current.items] })} className="bg-white/20 p-1.5 rounded hover:bg-white/40"><Icon name="plus" size={14}/></button>
-                                                    <div className="relative group">
-                                                        <input type="color" value={block.theme} onChange={e => setTabData(prev => ({...prev, [activeTab]: {...prev[activeTab], themes: {...prev[activeTab].themes, [block.originalCat]: e.target.value}}}))} className="w-6 h-6 p-0 bg-transparent border-0 cursor-pointer absolute inset-0 opacity-0 z-10" />
-                                                        <div className="w-6 h-6 rounded border border-white/30 flex items-center justify-center bg-white/10 group-hover:bg-white/20 transition-colors"><Icon name="palette" size={12} className="text-white" /></div>
-                                                    </div>
-                                                    <button onClick={() => confirm(`'${block.title}' 분류를 삭제할까요?`) && updateCurrentData({ items: current.items.filter(i => i.cat !== block.originalCat), order: current.order.filter(c => c !== block.originalCat) })} className="bg-white/20 p-1.5 rounded hover:bg-red-500/40"><Icon name="trash" size={14}/></button>
-                                                </div>
+                            <div className="print-pages-wrapper w-full flex flex-col items-center gap-10">
+                                {/* 🚨 계산된 '페이지' 단위로 A4 컨테이너를 직접 여러 개 렌더링 🚨 */}
+                                {pages.map((page, pageIdx) => (
+                                    <div key={pageIdx} className={`a4-paper-container ${activeTab === 'carton' ? 'carton-view-mode' : ''}`}>
+                                        <div className="flex gap-5 h-full">
+                                            <div className="flex flex-col gap-5 w-1/2">
+                                                {page.col1.map(block => renderBox(block))}
                                             </div>
-                                            <div style={{ backgroundColor: block.theme, fontSize: `${current.titleFontSize}px`, textAlign: 'left', padding: '10px 15px' }} className="hidden print:block text-white font-black border-b-2 border-slate-900">{block.title}</div>
-                                            
-                                            <table className="w-full border-collapse" style={{ fontSize: `${current.fontSize}px` }}>
-                                                <thead className="bg-slate-50 border-b-2 border-slate-900 font-bold text-left">
-                                                    <tr>
-                                                        <th className="w-10 border-r border-slate-900 py-2 text-center">V</th>
-                                                        <th className="px-4 border-r border-slate-900">제품명</th>
-                                                        {activeTab !== 'carton' && <th className="w-24 px-4 border-r border-slate-900">원산지</th>}
-                                                        <th className="w-32 px-4">{activeTab === 'carton' ? '소비기한' : '공급처'}</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {block.items.length === 0 ? (
-                                                        <tr><td colSpan="4" className="py-6 text-center text-slate-300 italic">내용 없음</td></tr>
-                                                    ) : (
-                                                        block.items.map(item => (
-                                                            <tr key={item.id} className="border-b border-slate-200 group/row hover:bg-slate-50 transition-colors">
-                                                                <td className="border-r border-slate-200 v-middle text-center">
-                                                                    <input type="checkbox" checked={item.checked} onChange={() => editItem(item.id, 'checked', !item.checked)} className="mx-auto block" style={{width:'15px', height:'15px'}} />
-                                                                </td>
-                                                                <td className="border-r border-slate-200 v-middle text-left">
-                                                                    <div className="flex items-center justify-between">
-                                                                        <textarea value={item.name} onChange={e => editItem(item.id, 'name', e.target.value)} className="cell-textarea font-black text-slate-800" rows={item.name.split('\n').length || 1} />
-                                                                        <div className="flex gap-1 no-print opacity-0 group-hover/row:opacity-100 transition-opacity p-1 shrink-0">
-                                                                            {activeTab === 'carton' && <button onClick={() => openLabelMaker(item)} className="text-indigo-500 hover:scale-110"><Icon name="printer" size={14}/></button>}
-                                                                            <button onClick={() => updateCurrentData({ items: current.items.filter(i => i.id !== item.id) })} className="text-red-400 hover:scale-110"><Icon name="trash" size={14}/></button>
-                                                                        </div>
-                                                                    </div>
-                                                                </td>
-                                                                {activeTab !== 'carton' && (
-                                                                    <td className="border-r border-slate-200 v-middle text-left">
-                                                                        <textarea value={item.origin} onChange={e => editItem(item.id, 'origin', e.target.value)} className="cell-textarea font-medium" rows={item.origin.split('\n').length || 1} />
-                                                                    </td>
-                                                                )}
-                                                                <td className="v-middle text-left">
-                                                                    <textarea value={item.vendor} onChange={e => editItem(item.id, 'vendor', e.target.value)} className="cell-textarea text-slate-500 font-medium" rows={item.vendor.split('\n').length || 1} />
-                                                                </td>
-                                                            </tr>
-                                                        ))
-                                                    )}
-                                                </tbody>
-                                            </table>
+                                            <div className="flex flex-col gap-5 w-1/2">
+                                                {page.col2.map(block => renderBox(block))}
+                                            </div>
                                         </div>
-                                    ))}
-                                </div>
+                                    </div>
+                                ))}
                             </div>
                         ) : (
                             <div className="flex flex-col lg:flex-row gap-8 max-w-[1400px] w-full items-start animate-pop">
