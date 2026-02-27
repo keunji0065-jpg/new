@@ -15,7 +15,7 @@
             font-family: 'Noto Sans KR', sans-serif; 
             background-color: #cbd5e1; 
             margin: 0; padding: 0; color: #1e293b;
-            overflow: hidden; /* 화면에서는 사이드바 대신 메인 영역 스크롤 사용 */
+            overflow: hidden; 
         }
         
         /* 화면에서 실제 A4 용지처럼 보여주는 레이아웃 */
@@ -26,7 +26,6 @@
             box-sizing: border-box;
             margin: 40px auto;
             position: relative;
-            /* 가로형 A4 표준 규격 */
             width: 297mm;
             min-height: 210mm;
             padding: 12mm;
@@ -34,7 +33,7 @@
             transform-origin: top center;
         }
 
-        /* 🚨 인쇄 설정: 다중 페이지 출력 및 잘림 방지 🚨 */
+        /* 🚨 인쇄 설정: 다중 페이지 출력 및 잘림 방지 (완벽 보강) 🚨 */
         @media print {
             @page { 
                 size: A4 landscape; 
@@ -42,46 +41,63 @@
             }
             .no-print { display: none !important; }
             
-            /* 모든 부모 요소의 높이 제한 해제 및 스크롤 제거 */
+            /* 모든 부모 요소의 높이 제한과 숨김 처리를 완전히 제거 */
             html, body { 
                 background: white !important; 
                 height: auto !important; 
+                min-height: auto !important;
                 overflow: visible !important; 
                 margin: 0 !important; 
                 padding: 0 !important; 
             }
             
-            #root, main {
+            #root, .print-root-wrapper {
                 height: auto !important;
                 overflow: visible !important;
                 display: block !important;
+            }
+
+            main {
+                height: auto !important;
+                overflow: visible !important;
+                display: block !important;
+                background: transparent !important;
+                padding: 0 !important;
             }
 
             .a4-paper-container { 
                 box-shadow: none !important; 
                 border: none !important; 
                 width: 297mm !important; 
-                height: auto !important; /* 고정 높이 해제 */
+                height: auto !important; 
                 min-height: auto !important;
                 margin: 0 !important; 
-                padding: 15mm !important; /* 인쇄용 여백 */
+                padding: 15mm !important; /* 인쇄 시 안전 여백 */
                 display: block !important;
                 position: relative !important;
+                overflow: visible !important;
             }
             
-            /* 박스가 페이지 중간에 걸리지 않도록 함 */
+            /* 박스가 페이지 경계에서 잘리지 않도록 함 */
             .group\/box {
-                break-inside: avoid !important;
+                break-inside: avoid-page !important;
                 page-break-inside: avoid !important;
                 margin-bottom: 10mm !important;
+                display: block !important;
+            }
+            
+            /* 테이블 인쇄 보정 */
+            table { 
+                page-break-inside: auto !important;
+            }
+            tr { 
+                page-break-inside: avoid !important; 
+                page-break-after: auto !important; 
             }
             
             /* 카톤박스 전용 인쇄 스타일 */
             .carton-view-mode .group\/box { border-width: 1px !important; border-color: #e2e8f0 !important; }
-            .carton-view-mode table,
-            .carton-view-mode th,
-            .carton-view-mode td,
-            .carton-view-mode tr {
+            .carton-view-mode table, .carton-view-mode th, .carton-view-mode td, .carton-view-mode tr {
                 border: none !important;
                 background-color: transparent !important;
             }
@@ -98,7 +114,6 @@
         .tab-inactive { background: #0f172a; color: #64748b; }
         .tab-active { background: #ffffff; color: #4f46e5; border: 1px solid #e2e8f0; border-bottom: 2px solid white; }
 
-        /* 텍스트 왼쪽 정렬 및 수직 중앙 정렬 */
         .cell-textarea {
             width: 100%;
             background: transparent;
@@ -117,9 +132,7 @@
 
         .animate-pop { animation: pop 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
         @keyframes pop { 0% { transform: scale(0.98); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
-        
         .no-scrollbar::-webkit-scrollbar { display: none; }
-        
         td.v-middle { vertical-align: middle !important; }
 
         .color-dot-sm {
@@ -137,13 +150,14 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef, useCallback } = React;
 
-        // 30가지 단색 팔레트
+        // 30가지 단색 팔레트 (연동 실패 해결을 위한 상수 통일)
         const PRESET_COLORS = [
+            "#3B82F6", "#EF4444", "#F97316", "#F59E0B", "#22C55E", 
+            "#6366F1", "#A855F7", "#EC4899", "#06B6D4", "#1e40af",
             "#000000", "#374151", "#6B7280", "#9CA3AF", "#D1D5DB", "#FFFFFF",
-            "#EF4444", "#B91C1C", "#F97316", "#EA580C", "#F59E0B", "#D97706",
-            "#EAB308", "#CA8A04", "#84CC16", "#65A30D", "#22C55E", "#16A34A",
-            "#10B981", "#059669", "#06B6D4", "#0891B2", "#0EA5E9", "#0284C7",
-            "#3B82F6", "#2563EB", "#6366F1", "#4F46E5", "#8B5CF6", "#EC4899"
+            "#B91C1C", "#EA580C", "#D97706", "#CA8A04", "#65A30D", "#16A34A",
+            "#10B981", "#059669", "#0891B2", "#0EA5E9", "#0284C7", "#2563EB", 
+            "#4F46E5", "#8B5CF6"
         ];
 
         const ICON_PATHS = {
@@ -156,7 +170,8 @@
             'save': <><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></>,
             'refresh': <><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></>,
             'settings': <><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></>,
-            'palette': <><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></>
+            'palette': <><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></>,
+            'folder-plus': <><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1-2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></>
         };
 
         const DEFAULT_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyE_S_2HKvPX6R3lRLZ_z6bI-RLxgX3E4D3oZziAEBHRcqRUWGXakX2NeMcRgl4VZbk/exec";
@@ -236,17 +251,10 @@
 
         const App = () => {
             const [tabData, setTabData] = useState(() => {
-                const saved = localStorage.getItem('cellina_inventory_final_v45');
+                const saved = localStorage.getItem('cellina_inventory_final_v48');
                 return saved ? JSON.parse(saved) : INITIAL_DATA;
             });
-            const [scriptUrl, setScriptUrl] = useState(() => {
-                const saved = localStorage.getItem('cellina_script_url');
-                // 새로운 스크립트 주소로 강제 업데이트
-                if (!saved || !saved.includes('AKfycbyE_S_2HKvPX6R3lRLZ_z6bI-RLxgX3E4D3oZziAEBHRcqRUWGXakX2NeMcRgl4VZbk')) {
-                    return DEFAULT_SCRIPT_URL;
-                }
-                return saved;
-            });
+            const [scriptUrl, setScriptUrl] = useState(() => localStorage.getItem('cellina_script_url') || DEFAULT_SCRIPT_URL);
             const [sheetUrl, setSheetUrl] = useState(() => localStorage.getItem('cellina_sheet_url') || DEFAULT_SHEET_URL);
 
             const [activeTab, setActiveTab] = useState("sample");
@@ -258,7 +266,7 @@
             const tabNameMapping = { 'sample': '샘플목록', 'carton': '카톤박스' };
 
             useEffect(() => {
-                localStorage.setItem('cellina_inventory_final_v45', JSON.stringify(tabData));
+                localStorage.setItem('cellina_inventory_final_v48', JSON.stringify(tabData));
                 localStorage.setItem('cellina_script_url', scriptUrl.trim());
                 localStorage.setItem('cellina_sheet_url', sheetUrl.trim());
             }, [tabData, scriptUrl, sheetUrl]);
@@ -300,7 +308,7 @@
                 if (!newCatName || current.order.includes(newCatName)) return;
                 const nextOrder = [newCatName, ...current.order];
                 const nextThemes = { ...current.themes };
-                nextThemes[newCatName] = DISTINCT_VIVID_COLORS[nextOrder.length % DISTINCT_VIVID_COLORS.length];
+                nextThemes[newCatName] = PRESET_COLORS[nextOrder.length % PRESET_COLORS.length];
                 const newItem = { id: Date.now(), cat: newCatName, name: "", origin: "", vendor: "", checked: false };
                 updateCurrentData({ items: [newItem, ...current.items], order: nextOrder, themes: nextThemes });
             };
@@ -329,9 +337,9 @@
                         }));
                         const uniqueCats = [...new Set(newItems.map(i => i.cat))];
                         const newThemes = { ...current.themes };
-                        uniqueCats.forEach((c, i) => { if(!newThemes[c]) newThemes[c] = DISTINCT_VIVID_COLORS[i % DISTINCT_VIVID_COLORS.length]; });
+                        uniqueCats.forEach((c, i) => { if(!newThemes[c]) newThemes[c] = PRESET_COLORS[i % PRESET_COLORS.length]; });
                         updateCurrentData({ items: newItems, order: uniqueCats, themes: newThemes });
-                        alert(`✅ [${sTab}] 데이터를 불러왔습니다.`);
+                        alert(`✅ [${sTab}] 데이터를 성공적으로 불러왔습니다.`);
                     }
                 } catch (err) { alert("⚠️ 연동 실패: " + err.message); }
                 setIsFetching(false);
@@ -379,7 +387,7 @@
             }, [current, filteredItems, searchTerm]);
 
             return (
-                <div className="h-screen flex flex-col overflow-hidden">
+                <div className="h-screen flex flex-col overflow-hidden print-root-wrapper">
                     <header className="no-print bg-slate-900 text-white z-50 shrink-0 border-b border-slate-700">
                         <div className="max-w-[1600px] mx-auto p-3 flex justify-between items-center gap-4">
                             <div className="flex items-center gap-2">
@@ -411,8 +419,11 @@
                                                 <input type="range" min="8" max="25" value={current.fontSize} onChange={e => updateCurrentData({ fontSize: parseInt(e.target.value) })} className="w-16 h-1 accent-emerald-500" />
                                             </div>
                                         </div>
+                                        <button onClick={addNewCategory} className="bg-indigo-600 hover:bg-indigo-500 px-3 py-2 rounded-lg font-bold text-[11px] flex items-center gap-2 transition-all">
+                                            <Icon name="folder-plus" size={12} /> 분류 추가
+                                        </button>
                                         <button onClick={fetchDataFromSheet} className="bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded-lg font-bold text-[11px] flex items-center gap-2 transition-all">
-                                            <Icon name="refresh" size={12} className={isFetching ? "animate-spin text-indigo-400" : ""} /> 갱신
+                                            <Icon name="refresh" size={12} className={isFetching ? "animate-spin" : ""} /> 갱신
                                         </button>
                                         <button onClick={pushToGoogleSheet} className="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded-lg font-bold text-[11px] flex items-center gap-2">
                                             <Icon name="save" size={12} /> 저장
@@ -434,9 +445,9 @@
 
                         {isConfigOpen && (
                             <div className="absolute top-16 right-6 bg-slate-800 border border-slate-700 p-5 rounded-2xl w-[400px] shadow-2xl animate-pop no-print">
-                                <label className="text-[10px] font-bold text-slate-500 block mb-1">앱스 스크립트 API URL</label>
+                                <label className="text-[10px] font-bold text-slate-500 block mb-1">앱스 스크립트 URL</label>
                                 <input value={scriptUrl} onChange={e=>setScriptUrl(e.target.value)} className="w-full bg-slate-900 rounded p-2 text-[10px] text-indigo-300 font-mono mb-4 outline-none border border-white/5" />
-                                <label className="text-[10px] font-bold text-slate-500 block mb-1">구글 시트 실제 주소</label>
+                                <label className="text-[10px] font-bold text-slate-500 block mb-1">구글 시트 주소</label>
                                 <input value={sheetUrl} onChange={e=>setSheetUrl(e.target.value)} className="w-full bg-slate-900 rounded p-2 text-[10px] text-slate-400 font-mono mb-6 outline-none" />
                                 <button onClick={()=>setIsConfigOpen(false)} className="w-full bg-indigo-600 py-3 rounded-xl font-bold text-xs text-white">설정 저장 후 닫기</button>
                             </div>
