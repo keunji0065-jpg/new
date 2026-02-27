@@ -18,19 +18,19 @@
             overflow: hidden; 
         }
         
-        /* 화면에서 실제 A4 용지처럼 보여주는 레이아웃 */
+        /* 실제 A4 가로 규격과 동일하게 설정 (화면 미리보기용) */
         .a4-paper-container {
             background: white;
-            box-shadow: 0 0 50px rgba(0, 0, 0, 0.25);
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.3);
             flex-shrink: 0;
             box-sizing: border-box;
             margin: 40px auto;
             position: relative;
-            /* 가로형 A4 표준 규격 */
             width: 297mm;
             min-height: 210mm;
-            padding: 10mm;
+            padding: 15mm; 
             transition: all 0.3s ease;
+            transform-origin: top center;
         }
 
         /* 인쇄 설정 */
@@ -52,25 +52,25 @@
             .a4-paper-container { 
                 box-shadow: none !important; 
                 border: none !important; 
-                width: 100% !important; 
-                min-height: 100% !important;
+                width: 297mm !important; 
+                min-height: 210mm !important;
                 margin: 0 !important; 
-                padding: 10mm !important;
+                padding: 15mm !important;
                 display: block !important;
                 page-break-after: always;
             }
             
-            .carton-view-mode .group\/box,
+            /* 카톤박스 전용 인쇄 스타일 */
+            .carton-view-mode .group\/box { border-width: 1px !important; border-color: #e2e8f0 !important; }
             .carton-view-mode table,
             .carton-view-mode th,
             .carton-view-mode td,
-            .carton-view-mode tr,
-            .carton-view-mode div {
+            .carton-view-mode tr {
                 border: none !important;
-                box-shadow: none !important;
                 background-color: transparent !important;
             }
             .carton-view-mode thead { display: none !important; }
+            .carton-view-mode .box-header-title { border: none !important; }
             
             * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         }
@@ -83,7 +83,7 @@
         .tab-inactive { background: #0f172a; color: #64748b; }
         .tab-active { background: #ffffff; color: #4f46e5; border: 1px solid #e2e8f0; border-bottom: 2px solid white; }
 
-        /* 텍스트 중앙 정렬 핵심 스타일 */
+        /* 텍스트 왼쪽 정렬 (전역 적용) */
         .cell-textarea {
             width: 100%;
             background: transparent;
@@ -92,11 +92,11 @@
             resize: none;
             overflow: hidden;
             line-height: 1.4;
-            padding: 8px 4px;
+            padding: 10px 12px; /* 가독성을 위한 좌우 여백 */
             display: block;
             white-space: pre-wrap;
             word-break: break-all;
-            text-align: center;
+            text-align: left; /* 요청대로 왼쪽 정렬 */
             vertical-align: middle;
         }
 
@@ -105,10 +105,17 @@
         
         .no-scrollbar::-webkit-scrollbar { display: none; }
         
-        /* 테이블 셀 내부 정렬 보정 */
         td.v-middle {
             vertical-align: middle !important;
         }
+
+        .color-dot-sm {
+            width: 22px; height: 22px;
+            border-radius: 4px; cursor: pointer;
+            border: 1px solid rgba(0,0,0,0.15);
+            transition: all 0.2s;
+        }
+        .color-dot-sm:hover { transform: scale(1.15); z-index: 10; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
     </style>
 </head>
 <body>
@@ -117,12 +124,14 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef, useCallback } = React;
 
-        // 상수 설정
-        const DISTINCT_VIVID_COLORS = [
-            "#3B82F6", "#EF4444", "#F97316", "#F59E0B", "#22C55E", 
-            "#6366F1", "#A855F7", "#EC4899", "#06B6D4", "#1e40af"
+        // 30가지 직관적 단색 팔레트
+        const PRESET_COLORS = [
+            "#000000", "#374151", "#6B7280", "#9CA3AF", "#D1D5DB", "#FFFFFF",
+            "#EF4444", "#B91C1C", "#F97316", "#EA580C", "#F59E0B", "#D97706",
+            "#EAB308", "#CA8A04", "#84CC16", "#65A30D", "#22C55E", "#16A34A",
+            "#10B981", "#059669", "#06B6D4", "#0891B2", "#0EA5E9", "#0284C7",
+            "#3B82F6", "#2563EB", "#6366F1", "#4F46E5", "#8B5CF6", "#EC4899"
         ];
-        const COMMON_COLORS = ["#000000", "#FFFFFF", ...DISTINCT_VIVID_COLORS];
 
         const ICON_PATHS = {
             'cloud': <path d="M17.5 19c2.5 0 4.5-2 4.5-4.5 0-2.3-1.7-4.1-3.9-4.4C17.6 6.5 14.1 4 10 4 6.4 4 3.4 6.3 2.2 9.5 0.9 10.4 0 11.9 0 13.5 0 16.5 2.5 19 5.5 19h12z"/>,
@@ -133,8 +142,8 @@
             'x': <><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>,
             'save': <><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></>,
             'refresh': <><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></>,
-            'settings': <><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></>,
-            'folder-plus': <><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></>
+            'settings': <><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1-2 2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></>,
+            'palette': <><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></>
         };
 
         const DEFAULT_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz9pQkbe9ArMid7mmlnFiQRtFf8o-CYxJT9hUXc5vz7ayZg5GuNOmRr5tW8aqBWXl2w/exec";
@@ -171,7 +180,7 @@
                         onFocus={() => setIsEditing(true)} onBlur={handleBlur}
                         onKeyDown={e => e.key === 'Enter' && e.target.blur()}
                         style={style}
-                        className={`outline-none bg-transparent transition-all rounded px-2 w-full font-black text-center ${isEditing ? 'bg-white/20 ring-1 ring-white/50' : 'cursor-text hover:bg-white/10'}`} 
+                        className={`outline-none bg-transparent transition-all rounded px-3 w-full font-black text-left ${isEditing ? 'bg-white/20 ring-1 ring-white/50' : 'cursor-text hover:bg-white/10'}`} 
                     />
                 </div>
             );
@@ -183,15 +192,32 @@
             </svg>
         );
 
-        const DualColorPicker = ({ label, colorKey, currentColor, onColorSelect }) => (
-            <div className="space-y-2 p-3 bg-white border border-slate-200 rounded-xl shadow-sm">
+        const ComplexColorPicker = ({ label, colorKey, currentColor, onColorSelect }) => (
+            <div className="space-y-3 p-4 bg-white border border-slate-200 rounded-2xl shadow-sm">
                 <div className="flex justify-between items-center mb-1">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{label}</label>
-                    <input type="color" value={currentColor} onChange={e => onColorSelect(colorKey, e.target.value)} className="w-5 h-5 p-0 border-0 cursor-pointer bg-transparent" />
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</label>
+                    <div className="flex items-center gap-2">
+                        <div className="relative group">
+                            <input 
+                                type="color" 
+                                value={currentColor} 
+                                onChange={e => onColorSelect(colorKey, e.target.value)} 
+                                className="w-6 h-6 p-0 border-0 cursor-pointer bg-transparent opacity-0 absolute inset-0 z-10" 
+                            />
+                            <div className="w-6 h-6 rounded-full border border-slate-300 flex items-center justify-center bg-slate-50 group-hover:bg-white transition-all shadow-sm">
+                                <Icon name="palette" size={12} className="text-indigo-500" />
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div className="grid grid-cols-8 gap-1">
-                    {COMMON_COLORS.map(c => (
-                        <div key={c} className={`color-dot-sm ${currentColor === c ? 'ring-2 ring-indigo-500 ring-offset-1' : ''}`} style={{ backgroundColor: c }} onClick={() => onColorSelect(colorKey, c)} />
+                <div className="grid grid-cols-6 gap-1.5">
+                    {PRESET_COLORS.map(c => (
+                        <div 
+                            key={c} 
+                            className={`color-dot-sm ${currentColor.toUpperCase() === c.toUpperCase() ? 'ring-2 ring-indigo-500 ring-offset-2' : ''}`} 
+                            style={{ backgroundColor: c }} 
+                            onClick={() => onColorSelect(colorKey, c)}
+                        />
                     ))}
                 </div>
             </div>
@@ -201,7 +227,7 @@
 
         const App = () => {
             const [tabData, setTabData] = useState(() => {
-                const saved = localStorage.getItem('cellina_inventory_final_v38');
+                const saved = localStorage.getItem('cellina_inventory_final_v41');
                 return saved ? JSON.parse(saved) : INITIAL_DATA;
             });
             const [scriptUrl, setScriptUrl] = useState(() => localStorage.getItem('cellina_script_url') || DEFAULT_SCRIPT_URL);
@@ -212,12 +238,11 @@
             const [labelModal, setLabelModal] = useState(null);
             const [isConfigOpen, setIsConfigOpen] = useState(false);
             const [isFetching, setIsFetching] = useState(false);
-            const [isSaving, setIsSaving] = useState(false);
 
             const tabNameMapping = { 'sample': '샘플목록', 'carton': '카톤박스' };
 
             useEffect(() => {
-                localStorage.setItem('cellina_inventory_final_v38', JSON.stringify(tabData));
+                localStorage.setItem('cellina_inventory_final_v41', JSON.stringify(tabData));
                 localStorage.setItem('cellina_script_url', scriptUrl.trim());
                 localStorage.setItem('cellina_sheet_url', sheetUrl.trim());
             }, [tabData, scriptUrl, sheetUrl]);
@@ -290,16 +315,13 @@
                     const fetchUrl = `${cScript}?action=read&tab=${encodeURIComponent(sTab)}&sheetUrl=${encodeURIComponent(cSheet)}&t=${Date.now()}`;
                     const res = await fetch(fetchUrl);
                     const text = await res.text();
-                    
-                    if (text.trim().startsWith("<!DOCTYPE")) throw new Error("구글 스크립트 배포 시 액세스 권한을 '모든 사용자'로 설정해야 합니다.");
-
+                    if (text.trim().startsWith("<!DOCTYPE")) throw new Error("구글 스크립트 권한 설정(모든 사용자)이 필요합니다.");
                     const data = JSON.parse(text);
                     if (data && Array.isArray(data)) {
                         const dataRows = data.slice(1);
                         const validRows = dataRows.filter(row => row[0] || row[1]);
                         const newItems = validRows.map((row, idx) => ({
-                            id: Date.now() + idx,
-                            cat: row[0] ? String(row[0]).trim() : "기본",
+                            id: Date.now() + idx, cat: row[0] ? String(row[0]).trim() : "기본",
                             name: row[1] ? String(row[1]).trim() : "",
                             origin: row[2] ? String(row[2]).trim() : "",
                             vendor: row[3] ? String(row[3]).trim() : "",
@@ -309,7 +331,7 @@
                         const newThemes = { ...current.themes };
                         uniqueCats.forEach((c, i) => { if(!newThemes[c]) newThemes[c] = DISTINCT_VIVID_COLORS[i % DISTINCT_VIVID_COLORS.length]; });
                         updateCurrentData({ items: newItems, order: uniqueCats, themes: newThemes });
-                        alert(`✅ [${sTab}] 데이터를 성공적으로 불러왔습니다.`);
+                        alert(`✅ [${sTab}] 데이터를 불러왔습니다.`);
                     }
                 } catch (err) { alert("⚠️ 연동 실패: " + err.message); }
                 setIsFetching(false);
@@ -319,7 +341,6 @@
                 const cScript = scriptUrl.trim();
                 const cSheet = sheetUrl.trim();
                 if (!cScript || !cSheet) { alert("환경설정에서 주소를 입력해주세요."); return; }
-                setIsSaving(true);
                 try {
                     const pushData = current.items.map(item => [item.cat, item.name, item.origin || "", item.vendor || ""]);
                     pushData.unshift(["분류", "제품명", "원산지", "공급처"]);
@@ -328,7 +349,6 @@
                     await fetch(cScript, { method: "POST", body: JSON.stringify(payload) });
                     alert(`✅ [${sTab}] 저장 완료!`);
                 } catch (err) { alert("⚠️ 저장 실패: " + err.message); }
-                setIsSaving(false);
             };
 
             const groupedBlocks = useMemo(() => {
@@ -352,12 +372,12 @@
                             </div>
 
                             {!labelModal && (
-                                <div className="flex-1 max-w-md relative">
-                                    <Icon name="search" size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                                <div className="flex-1 max-w-md relative group">
+                                    <Icon name="search" size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                                     <input 
-                                        type="text" placeholder="실시간 제품 및 분류 검색..." 
+                                        type="text" placeholder="검색..." 
                                         value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-                                        className="w-full bg-slate-800 border-none rounded-xl pl-9 pr-4 py-2 text-xs outline-none focus:ring-2 ring-indigo-500 transition-all"
+                                        className="w-full bg-slate-800 border-none rounded-xl pl-9 pr-10 py-2 text-xs outline-none focus:ring-2 ring-indigo-500 transition-all focus:bg-slate-950"
                                     />
                                 </div>
                             )}
@@ -366,12 +386,12 @@
                                 {!labelModal ? (
                                     <>
                                         <div className="flex bg-slate-800 rounded-lg p-1 gap-3 items-center px-4 border border-slate-700">
-                                            <div className="flex items-center gap-2" title="박스 제목 크기">
-                                                <span className="text-[9px] font-bold text-slate-500">TIT</span>
+                                            <div className="flex items-center gap-2" title="제목 크기">
+                                                <span className="text-[9px] font-bold text-slate-500">T</span>
                                                 <input type="range" min="10" max="35" value={current.titleFontSize} onChange={e => updateCurrentData({ titleFontSize: parseInt(e.target.value) })} className="w-16 h-1 accent-indigo-500" />
                                             </div>
-                                            <div className="flex items-center gap-2" title="내용 글씨 크기">
-                                                <span className="text-[9px] font-bold text-slate-500">TXT</span>
+                                            <div className="flex items-center gap-2" title="내용 크기">
+                                                <span className="text-[9px] font-bold text-slate-500">C</span>
                                                 <input type="range" min="8" max="25" value={current.fontSize} onChange={e => updateCurrentData({ fontSize: parseInt(e.target.value) })} className="w-16 h-1 accent-emerald-500" />
                                             </div>
                                         </div>
@@ -384,7 +404,7 @@
                                         <button onClick={() => window.print()} className="bg-white text-slate-900 px-4 py-2 rounded-lg font-black text-[11px] flex items-center gap-2">
                                             <Icon name="printer" size={12} /> 인쇄
                                         </button>
-                                        <button onClick={() => setIsConfigOpen(!isConfigOpen)} className="p-2 text-slate-400 hover:text-white"><Icon name="settings" /></button>
+                                        <button onClick={() => setIsConfigOpen(!isConfigOpen)} className="p-2 text-slate-400 hover:text-white transition-colors"><Icon name="settings" /></button>
                                     </>
                                 ) : (
                                     <>
@@ -398,95 +418,84 @@
 
                         {isConfigOpen && (
                             <div className="absolute top-16 right-6 bg-slate-800 border border-slate-700 p-5 rounded-2xl w-[400px] shadow-2xl animate-pop no-print">
-                                <label className="text-[10px] font-bold text-slate-500 block mb-1 uppercase tracking-tighter">앱스 스크립트 API URL</label>
-                                <input value={scriptUrl} onChange={e=>setScriptUrl(e.target.value)} className="w-full bg-slate-900 rounded p-2 text-[10px] text-indigo-300 font-mono mb-4 outline-none border border-white/5 focus:border-indigo-500" />
-                                <label className="text-[10px] font-bold text-slate-500 block mb-1 uppercase tracking-tighter">구글 시트 실제 주소</label>
-                                <input value={sheetUrl} onChange={e=>setSheetUrl(e.target.value)} className="w-full bg-slate-900 rounded p-2 text-[10px] text-slate-400 font-mono mb-6 outline-none border border-white/5 focus:border-slate-500" />
-                                <div className="flex gap-2">
-                                    <button onClick={()=>setIsConfigOpen(false)} className="flex-1 bg-indigo-600 py-3 rounded-xl font-bold text-xs shadow-lg shadow-indigo-500/20">설정 저장 후 닫기</button>
-                                </div>
+                                <label className="text-[10px] font-bold text-slate-500 block mb-1">앱스 스크립트 URL</label>
+                                <input value={scriptUrl} onChange={e=>setScriptUrl(e.target.value)} className="w-full bg-slate-900 rounded p-2 text-[10px] text-indigo-300 font-mono mb-4 outline-none border border-white/5" />
+                                <label className="text-[10px] font-bold text-slate-500 block mb-1">구글 시트 주소</label>
+                                <input value={sheetUrl} onChange={e=>setSheetUrl(e.target.value)} className="w-full bg-slate-900 rounded p-2 text-[10px] text-slate-400 font-mono mb-6 outline-none" />
+                                <button onClick={()=>setIsConfigOpen(false)} className="w-full bg-indigo-600 py-3 rounded-xl font-bold text-xs">설정 저장 후 닫기</button>
                             </div>
                         )}
 
                         <div className="px-6 flex gap-1 border-t border-slate-800">
                             {Object.keys(tabData).map(key => (
                                 <button key={key} onClick={() => setActiveTab(key)} className={`tab-button ${activeTab === key ? 'tab-active' : 'tab-inactive'}`}>
-                                    <span className="uppercase">{tabData[key].title}</span>
+                                    <span className="uppercase font-black">{tabData[key].title}</span>
                                 </button>
                             ))}
                         </div>
                     </header>
 
-                    <main className="flex-1 overflow-auto bg-slate-200 p-8 flex flex-col items-center">
+                    <main className="flex-1 overflow-auto bg-slate-300 p-8 flex flex-col items-center">
                         {!labelModal ? (
                             <div className={`a4-paper-container ${activeTab === 'carton' ? 'carton-view-mode' : ''}`} id="paper">
                                 <div className={`grid gap-x-10 gap-y-8 items-start ${current.printCols === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
                                     {groupedBlocks.map((block) => (
                                         <div key={block.id} className="group/box border-2 border-slate-900 bg-white shadow-sm h-fit break-inside-avoid">
-                                            {/* 박스 일체형 헤더 */}
-                                            <div style={{ backgroundColor: block.theme }} className="flex justify-between items-center p-2 text-white print:hidden border-b-2 border-slate-900">
-                                                <EditableTitle 
-                                                    initialValue={block.title} 
-                                                    onSave={(v) => renameCategory(block.id, v)} 
-                                                    style={{ fontSize: `${current.titleFontSize}px` }} 
-                                                    className="flex-1"
-                                                />
+                                            {/* 박스 헤더 (분류명) - 왼쪽 정렬 */}
+                                            <div style={{ backgroundColor: block.theme }} className="flex justify-between items-center p-2 text-white print:hidden border-b-2 border-slate-900 box-header-title">
+                                                <EditableTitle initialValue={block.title} onSave={(v) => renameCategory(block.id, v)} style={{ fontSize: `${current.titleFontSize}px` }} className="flex-1" />
                                                 <div className="flex gap-1 no-print items-center">
                                                     <button onClick={() => {
                                                         const newItem = { id: Date.now(), cat: block.id, name: "", origin: "", vendor: "", checked: false };
                                                         updateCurrentData({ items: [newItem, ...current.items] });
-                                                    }} className="bg-white/20 p-1.5 rounded hover:bg-white/40"><Icon name="plus" size={14}/></button>
-                                                    <input type="color" value={block.theme} onChange={e => setTabData(prev => ({...prev, [activeTab]: {...prev[activeTab], themes: {...prev[activeTab].themes, [block.id]: e.target.value}}}))} className="w-6 h-6 p-0 bg-transparent border-0 cursor-pointer" />
-                                                    <button onClick={() => {
-                                                        if(confirm(`'${block.title}' 분류를 삭제할까요?`)) {
-                                                            const nextItems = current.items.filter(i => i.cat !== block.id);
-                                                            const nextOrder = current.order.filter(c => c !== block.id);
-                                                            updateCurrentData({ items: nextItems, order: nextOrder });
-                                                        }
-                                                    }} className="bg-white/20 p-1.5 rounded hover:bg-red-500/40"><Icon name="trash" size={14}/></button>
+                                                    }} className="bg-white/20 p-1.5 rounded hover:bg-white/40 transition-colors"><Icon name="plus" size={14}/></button>
+                                                    <div className="relative group">
+                                                        <input type="color" value={block.theme} onChange={e => setTabData(prev => ({...prev, [activeTab]: {...prev[activeTab], themes: {...prev[activeTab].themes, [block.id]: e.target.value}}}))} className="w-6 h-6 p-0 bg-transparent border-0 cursor-pointer absolute inset-0 opacity-0 z-10" />
+                                                        <div className="w-6 h-6 rounded border border-white/30 flex items-center justify-center bg-white/10 group-hover:bg-white/20 transition-colors"><Icon name="palette" size={12} className="text-white" /></div>
+                                                    </div>
+                                                    <button onClick={() => confirm(`'${block.title}' 분류를 삭제할까요?`) && updateCurrentData({ items: current.items.filter(i => i.cat !== block.id), order: current.order.filter(c => c !== block.id) })} className="bg-white/20 p-1.5 rounded hover:bg-red-500/40"><Icon name="trash" size={14}/></button>
                                                 </div>
                                             </div>
-                                            <div style={{ backgroundColor: block.theme, fontSize: `${current.titleFontSize}px` }} className="hidden print:block text-white font-black text-center py-2 border-b-2 border-slate-900">{block.title}</div>
+                                            <div style={{ backgroundColor: block.theme, fontSize: `${current.titleFontSize}px`, textAlign: 'left', paddingLeft: '12px' }} className="hidden print:block text-white font-black py-2 border-b-2 border-slate-900">{block.title}</div>
                                             
                                             <table className="w-full border-collapse" style={{ fontSize: `${current.fontSize}px` }}>
-                                                <thead className="bg-slate-50 border-b-2 border-slate-900 font-bold text-center">
+                                                <thead className="bg-slate-50 border-b-2 border-slate-900 font-bold text-left">
                                                     <tr>
-                                                        <th className="w-8 border-r border-slate-900 py-2">V</th>
-                                                        <th className="px-2 border-r border-slate-900">제품명</th>
-                                                        {activeTab !== 'carton' && <th className="w-16 border-r border-slate-900">원산지</th>}
-                                                        <th className="w-24 px-2">{activeTab === 'carton' ? '소비기한' : '공급처'}</th>
+                                                        <th className="w-10 border-r border-slate-900 py-2 text-center">V</th>
+                                                        <th className="px-3 border-r border-slate-900">제품명</th>
+                                                        {activeTab !== 'carton' && <th className="w-24 px-3 border-r border-slate-900">원산지</th>}
+                                                        <th className="w-32 px-3">{activeTab === 'carton' ? '소비기한' : '공급처'}</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
                                                     {block.items.length === 0 ? (
-                                                        <tr><td colSpan="4" className="py-6 text-center text-slate-300 italic">내용이 비어 있습니다.</td></tr>
+                                                        <tr><td colSpan="4" className="py-6 text-center text-slate-300 italic">내용 없음</td></tr>
                                                     ) : (
                                                         block.items.map(item => (
                                                             <tr key={item.id} className="border-b border-slate-200 group/row hover:bg-slate-50 transition-colors">
                                                                 <td className="border-r border-slate-200 v-middle text-center">
                                                                     <input type="checkbox" checked={item.checked} onChange={() => editItem(item.id, 'checked', !item.checked)} className="mx-auto block" style={{width:'15px', height:'15px'}} />
                                                                 </td>
-                                                                <td className="border-r border-slate-200 v-middle">
+                                                                <td className="border-r border-slate-200 v-middle text-left">
                                                                     <div className="flex items-center justify-between">
                                                                         <textarea 
-                                                                            value={item.name} 
-                                                                            onChange={e => editItem(item.id, 'name', e.target.value)} 
+                                                                            value={item.name} onChange={e => editItem(item.id, 'name', e.target.value)} 
                                                                             className="cell-textarea font-black text-slate-800"
                                                                             rows={item.name.split('\n').length || 1}
                                                                         />
                                                                         <div className="flex gap-1 no-print opacity-0 group-hover/row:opacity-100 transition-opacity p-1 shrink-0">
-                                                                            {activeTab === 'carton' && <button onClick={() => openLabelMaker(item)} className="text-indigo-500"><Icon name="printer" size={14}/></button>}
-                                                                            <button onClick={() => updateCurrentData({ items: current.items.filter(i => i.id !== item.id) })} className="text-red-400"><Icon name="trash" size={14}/></button>
+                                                                            {activeTab === 'carton' && <button onClick={() => openLabelMaker(item)} className="text-indigo-500 hover:scale-110 transition-transform"><Icon name="printer" size={14}/></button>}
+                                                                            <button onClick={() => updateCurrentData({ items: current.items.filter(i => i.id !== item.id) })} className="text-red-400 hover:scale-110 transition-transform"><Icon name="trash" size={14}/></button>
                                                                         </div>
                                                                     </div>
                                                                 </td>
                                                                 {activeTab !== 'carton' && (
-                                                                    <td className="border-r border-slate-200 v-middle text-center">
-                                                                        <textarea value={item.origin} onChange={e => editItem(item.id, 'origin', e.target.value)} className="cell-textarea text-center font-medium" rows={item.origin.split('\n').length || 1} />
+                                                                    <td className="border-r border-slate-200 v-middle text-left">
+                                                                        <textarea value={item.origin} onChange={e => editItem(item.id, 'origin', e.target.value)} className="cell-textarea font-medium" rows={item.origin.split('\n').length || 1} />
                                                                     </td>
                                                                 )}
-                                                                <td className="v-middle text-center">
-                                                                    <textarea value={item.vendor} onChange={e => editItem(item.id, 'vendor', e.target.value)} className="cell-textarea text-center text-slate-500" rows={item.vendor.split('\n').length || 1} />
+                                                                <td className="v-middle text-left">
+                                                                    <textarea value={item.vendor} onChange={e => editItem(item.id, 'vendor', e.target.value)} className="cell-textarea text-slate-500 font-medium" rows={item.vendor.split('\n').length || 1} />
                                                                 </td>
                                                             </tr>
                                                         ))
@@ -512,10 +521,10 @@
                                     </div>
                                 </div>
 
-                                <div className="w-[420px] space-y-4 no-print">
+                                <div className="w-[420px] space-y-4 no-print editor-sidebar p-2">
                                     <div className="bg-white p-6 rounded-3xl shadow-lg border border-slate-200">
                                         <div className="flex justify-between items-center mb-6">
-                                            <h3 className="font-black text-xs uppercase text-slate-400 tracking-tighter">라벨 스타일 에디터</h3>
+                                            <h3 className="font-black text-xs uppercase text-slate-400 tracking-tighter">스타일 에디터</h3>
                                             <button onClick={() => setLabelModal(null)} className="p-2 text-slate-300 hover:text-red-500 transition-colors"><Icon name="x" size={24}/></button>
                                         </div>
                                         
@@ -526,19 +535,19 @@
 
                                         <div className="space-y-6">
                                             <div className="space-y-2">
-                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">메인 제품명</label>
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">텍스트 입력</label>
                                                 <textarea value={labelModal.mainText} onChange={e => setLabelModal({...labelModal, mainText: e.target.value})} className="w-full border-2 border-slate-100 p-4 rounded-2xl h-32 font-bold text-sm bg-slate-50 focus:border-indigo-500 outline-none transition-all" />
                                             </div>
                                             
                                             {!labelModal.isSingleZone && (
                                                 <div className="space-y-2">
-                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">하단 추가 정보</label>
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">하단 텍스트</label>
                                                     <input value={labelModal.footerText} onChange={e => setLabelModal({...labelModal, footerText: e.target.value})} className="w-full border-2 border-slate-100 p-4 rounded-2xl font-bold text-sm bg-slate-50 focus:border-indigo-500 outline-none transition-all" />
                                                 </div>
                                             )}
 
-                                            <DualColorPicker label="배경 색상" colorKey="bgTop" currentColor={labelModal.bgTop} onColorSelect={(k,v) => setLabelModal({...labelModal, [k]:v})} />
-                                            <DualColorPicker label="글자 색상" colorKey="colorTop" currentColor={labelModal.colorTop} onColorSelect={(k,v) => setLabelModal({...labelModal, [k]:v})} />
+                                            <ComplexColorPicker label="배경 색상" colorKey="bgTop" currentColor={labelModal.bgTop} onColorSelect={(k,v) => setLabelModal({...labelModal, [k]:v})} />
+                                            <ComplexColorPicker label="글자 색상" colorKey="colorTop" currentColor={labelModal.colorTop} onColorSelect={(k,v) => setLabelModal({...labelModal, [k]:v})} />
 
                                             <div className="space-y-2">
                                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex justify-between">메인 크기 <span>{labelModal.mainSize}px</span></label>
